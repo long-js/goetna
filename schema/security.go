@@ -4,7 +4,6 @@ import "time"
 
 // Security...
 type Security struct {
-	Id              int       `json:"Id"`
 	Symbol          string    `json:"Symbol"`
 	Description     string    `json:"Description"`
 	Exchange        string    `json:"Exchange"`
@@ -12,9 +11,11 @@ type Security struct {
 	AddedDate       time.Time `json:"AddedDate"`
 	ModifyDate      time.Time `json:"ModifyDate"`
 	Type            string    `json:"Type"`
-	Precision       int       `json:"Precision"`
-	VolumePrecision int       `json:"VolumePrecision"`
+	Id              int32     `json:"Id"`
 	TickSize        float64   `json:"TickSize"`
+	ContractSize    float64   `json:"ContractSize"`
+	Precision       uint8     `json:"Precision"`
+	VolumePrecision uint8     `json:"VolumePrecision"`
 	Enabled         bool      `json:"Enabled"`
 	AllowTrade      bool      `json:"AllowTrade"`
 	AllowMargin     bool      `json:"AllowMargin"`

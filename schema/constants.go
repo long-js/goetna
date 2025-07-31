@@ -80,9 +80,19 @@ const (
 )
 const (
 	WSTopicQuote    = "Quote"
+	WSTopicCandle   = "Candle"
 	WSTopicBalance  = "AccountBalance"
 	WSTopicPosition = "Position"
 	WSTopicOrder    = "Order"
+	WSCmdCreate     = "CreateSession.txt"
+	WSCmdSub        = "Subscribe.txt"
+	WSCmdUnsub      = "Unsubscribe.txt"
+	WSCmdPing       = "Ping"
 )
 
-var EntytyType = []byte("\"EntityType\":")
+const (
+	FieldEntytyType = "\"EntityType\": "
+	FieldCmd        = "\"Cmd\": "
+)
+
+var WSPongMsg = []byte("{\"Cmd\":\"Pong\",\"StatusCode\":\"Ok\"}")

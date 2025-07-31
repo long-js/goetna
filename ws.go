@@ -24,37 +24,42 @@ type ConnHandler func()
 type DisconnHandler func(code int, text string) error
 
 // NewEtnaWS creates the instance of EtnaWS, connects it to th e `url` and starts receive and ping goroutines.
-func NewEtnaWS(url, login, passwd string, sessionId sch.SessionId, logger Logger, hdlConn ConnHandler,
+func NewEtnaWS(url string, login, passwd []byte, streamSessId sch.SessionId, logger Logger, hdlConn ConnHandler,
 	hdlDisconn DisconnHandler) *EtnaWS {
 	ws := EtnaWS{
-		mu: sync.Mutex{}, url: url, login: login, passwd: passwd, sessionId: sessionId, logger: logger,
+		mu: sync.Mutex{}, url: url, login: login, passwd: passwd, streamSessId: streamSessId, logger: logger,
 		hdlConnect: hdlConn, hdlDisconnect: hdlDisconn, subsciptions: map[string][]sch.Subscription{}}
 	ws.ctx, ws.ctxCancel = context.WithCancel(context.Background())
-	ws.reqChan = make(chan []byte)
-	ws.msgChan = make(chan []byte)
+	ws.reqChan = make(chan []byte, 100)
+	ws.QuotesChan = make(chan sch.Quote, 1000)
+	ws.BarsChan = make(chan sch.Bar, 100)
+	ws.BalanceChan = make(chan sch.TradingBalance, 20)
+	ws.PositionsChan = make(chan sch.Position, 20)
+	ws.OrdersChan = make(chan sch.Order, 100)
 	return &ws
 }
 
 type EtnaWS struct {
 	url                      string
-	sessionId, userSessionId sch.SessionId
+	streamSessId, userSessId sch.SessionId
 	userId                   int32
-	login, passwd            string
+	login, passwd            []byte
 
-	logger           Logger
-	ctx              context.Context
-	ctxCancel        func()
-	mu               sync.Mutex
-	wg               sync.WaitGroup
-	conn             *gws.Conn
-	connected        atomic.Bool
-	hdlConnect       ConnHandler
-	hdlDisconnect    DisconnHandler
-	lastMsgTs        atomic.Int64
-	reqChan, msgChan chan []byte
-	subsciptions     map[string][]sch.Subscription
+	logger                Logger
+	ctx                   context.Context
+	ctxCancel             func()
+	mu                    sync.Mutex
+	wg                    sync.WaitGroup
+	conn                  *gws.Conn
+	connected, hasSession atomic.Bool
+	hdlConnect            ConnHandler
+	hdlDisconnect         DisconnHandler
+	lastMsgTs             atomic.Int64
+	reqChan               chan []byte
+	subsciptions          map[string][]sch.Subscription
 
 	QuotesChan    chan sch.Quote
+	BarsChan      chan sch.Bar
 	BalanceChan   chan sch.TradingBalance
 	PositionsChan chan sch.Position
 	OrdersChan    chan sch.Order
@@ -65,17 +70,22 @@ type EtnaWS struct {
 // Returns:
 //
 //	true if the client is currently connected, false otherwise.
-func (ws *EtnaWS) IsConnected() bool {
-	return (*ws).connected.Load()
+func (ws *EtnaWS) IsOperational() bool {
+	return (*ws).connected.Load() && (*ws).hasSession.Load()
 }
 
-// Start initiates the WebSocket connection and starts the background processes for receiving messages and sending pings.
+// Start initiates the WebSocket connection and starts background processes for receiving messages and sending pings.
 func (ws *EtnaWS) Start() error {
 	if err := (*ws).connect(); err != nil {
 		return err
 	}
-	go (*ws).goReceive()
-	go (*ws).goPing()
+	go (*ws).goReceiver()
+	go (*ws).goSender()
+	// go (*ws).goPing()
+
+	for !(*ws).IsOperational() {
+		time.Sleep(1 * time.Second)
+	}
 	return nil
 }
 
@@ -92,8 +102,12 @@ func (ws *EtnaWS) connect() error {
 	} else if uri, err = (*ws).createUrl(); err != nil {
 		return err
 	}
-	header := http.Header{"User-Agent": []string{"qant/2.0"}}
+	header := make(http.Header)
+	header["User-Agent"] = []string{"qant/2.0"}
+	header["Accept-Encoding"] = []string{"gzip, deflate"}
+
 	dialer := gws.Dialer{EnableCompression: true, HandshakeTimeout: 45 * time.Second}
+	(*ws).logger.Info("connecting: %s", uri)
 	conn, response, err := dialer.DialContext((*ws).ctx, uri, header)
 	if err != nil {
 		return fmt.Errorf("failed to connect: %+v, status: %s", err, (*response).Status)
@@ -104,7 +118,8 @@ func (ws *EtnaWS) connect() error {
 	}
 	(*ws).conn = conn
 	(*ws).connected.Store(true)
-	(*ws).logger.Info("connected: %+v, close: %t %s", response.Header, response.Close, uri)
+	(*ws).logger.Info("connected: %s [%s] %s, close: %t", (*ws).url, response.Header.Get("Server"),
+		response.Header.Get("Date"), response.Close)
 	return nil
 }
 
@@ -143,18 +158,25 @@ func (ws *EtnaWS) reconnect() {
 // createUrl generates the WebSocket connection URL with the necessary authentication parameters.
 // It prioritizes using existing session credentials if available, otherwise it decodes and uses login and password.
 func (ws *EtnaWS) createUrl() (string, error) {
-	var v url.Values
+	var (
+		err  error
+		v    url.Values
+		decL = make([]byte, base64.StdEncoding.DecodedLen(len((*ws).login)))
+		decP = make([]byte, base64.StdEncoding.DecodedLen(len((*ws).passwd)))
+	)
 
-	if (*ws).sessionId != "" && (*ws).userSessionId != "" && (*ws).userId != 0 {
+	if (*ws).streamSessId != "" && (*ws).userSessId != "" && (*ws).userId != 0 {
 		v = url.Values{
-			"User":     {fmt.Sprintf("%d:%s", (*ws).userId, (*ws).userSessionId)},
-			"Password": {string((*ws).sessionId)}, "HttpClientType": {"WebSocket"}}
-	} else if login, err := base64.StdEncoding.DecodeString((*ws).login); err != nil {
-		return "", fmt.Errorf("can't decode creds %v", err)
-	} else if pwd, err := base64.StdEncoding.DecodeString((*ws).passwd); err != nil {
-		return "", fmt.Errorf("can't decode creds %v", err)
+			"User":     {fmt.Sprintf("%d:%s", (*ws).userId, (*ws).userSessId)},
+			"Password": {string((*ws).streamSessId)}, "HttpClientType": {"WebSocket"}}
+	} else if _, err = base64.StdEncoding.Decode(decL, (*ws).login); err != nil {
+		return "", fmt.Errorf("can't decode login %v", err)
+	} else if _, err = base64.StdEncoding.Decode(decP, (*ws).passwd); err != nil {
+		return "", fmt.Errorf("can't decode password %v", err)
 	} else {
-		v = url.Values{"User": {string(login)}, "Password": {string(pwd)}, "HttpClientType": {"WebSocket"}}
+		v = url.Values{
+			"User": {string(bytes.Trim(decL, "\x00"))}, "Password": {string(bytes.Trim(decP, "\x00"))},
+			"HttpClientType": {"WebSocket"}}
 	}
 	return fmt.Sprintf("%s/CreateSession.txt?%s", (*ws).url, v.Encode()), nil
 }
@@ -167,9 +189,8 @@ func (ws *EtnaWS) sendJson(message *sch.Subscription) error {
 	)
 	if buf, err = gjson.Marshal(*message); err != nil {
 		return fmt.Errorf("can't marshal %+v, %+v", *message, err)
-	} else if err = (*(*ws).conn).WriteMessage(gws.BinaryMessage, buf); err != nil {
-		return fmt.Errorf("can't send message %+v, %+v", *message, err)
 	}
+	(*ws).reqChan <- buf
 	return nil
 }
 
@@ -197,14 +218,10 @@ func (ws *EtnaWS) Subscribe(topic string, keys string) error {
 	}
 	if !exist {
 		sub := sch.Subscription{
-			Cmd: "Subscribe.txt", SessionId: (*ws).sessionId, Keys: keys, Topic: topic,
-			HttpClientType: "WebSocket"}
+			Cmd: "Subscribe.txt", SessionId: (*ws).userSessId, Keys: keys, Topic: topic, HttpClientType: "WebSocket"}
 		if err := (*ws).sendJson(&sub); err != nil {
 			return err
-		} else {
-			subs = append(subs, sub)
 		}
-		(*ws).logger.Info("Subscribed %s: %s", topic, keys)
 	}
 	return nil
 }
@@ -243,16 +260,28 @@ func (ws *EtnaWS) onMessage(topic string, dec *gjson.Decoder) error {
 	var (
 		err      error
 		quote    sch.Quote
+		bar      sch.Bar
 		balance  sch.TradingBalance
 		position sch.Position
 		order    sch.Order
+		sub      sch.Subscription
+		sBuf     = map[string]string{}
 	)
 	switch topic {
 	case sch.WSTopicQuote:
-		if err = dec.Decode(&quote); err != nil {
+		if err = dec.Decode(&sBuf); err != nil {
+			return fmt.Errorf("quote decoding fault %+v", err)
+		} else if err = quote.Parse(sBuf); err != nil {
 			return fmt.Errorf("quote decoding fault %+v", err)
 		}
 		(*ws).QuotesChan <- quote
+	case sch.WSTopicCandle:
+		if err = dec.Decode(&sBuf); err != nil {
+			return fmt.Errorf("bar decoding fault %+v", err)
+		} else if err = bar.Parse(sBuf); err != nil {
+			return fmt.Errorf("bar decoding fault %+v", err)
+		}
+		(*ws).BarsChan <- bar
 	case sch.WSTopicOrder:
 		if err = dec.Decode(&order); err != nil {
 			return fmt.Errorf("order decoding fault %+v", err)
@@ -261,6 +290,8 @@ func (ws *EtnaWS) onMessage(topic string, dec *gjson.Decoder) error {
 	case sch.WSTopicBalance:
 		if err = dec.Decode(&balance); err != nil {
 			return fmt.Errorf("balance decoding fault %+v", err)
+		} else if err = balance.Parse(); err != nil {
+			return fmt.Errorf("balance parsing fault %+v", err)
 		}
 		(*ws).BalanceChan <- balance
 	case sch.WSTopicPosition:
@@ -268,6 +299,32 @@ func (ws *EtnaWS) onMessage(topic string, dec *gjson.Decoder) error {
 			return fmt.Errorf("position decoding fault %+v", err)
 		}
 		(*ws).PositionsChan <- position
+	case sch.WSCmdPing:
+		(*ws).reqChan <- sch.WSPongMsg
+	case sch.WSCmdSub:
+		if err = dec.Decode(&sub); err != nil {
+			return fmt.Errorf("subscription decoding fault %+v", err)
+		}
+		if subs, exist := (*ws).subsciptions[sub.Topic]; exist {
+			subs = append(subs, sub)
+			(*ws).logger.Info("Subscribed %s: %s [%s]", sub.Topic, sub.Keys, sub.SessionId)
+		}
+	case sch.WSCmdUnsub:
+		if err = dec.Decode(&sub); err != nil {
+			return fmt.Errorf("unsubscription decoding fault %+v", err)
+		}
+		if _, exist := (*ws).subsciptions[sub.Topic]; exist {
+			(*ws).logger.Info("TODO Unsubscribed %s: %s [%s]", sub.Topic, sub.Keys, sub.SessionId)
+		}
+	case sch.WSCmdCreate:
+		msg := map[string]string{}
+		if err = dec.Decode(&msg); err != nil {
+			return fmt.Errorf("CreateSession decoding fault %+v", err)
+		}
+		(*ws).userSessId = sch.SessionId(msg["SessionId"])
+		(*ws).hasSession.Store(true)
+		(*ws).hdlConnect()
+		(*ws).logger.Info("Websocket session created: %s", msg["SessionId"])
 	default:
 		return fmt.Errorf("wrong message %s", topic)
 	}
@@ -281,15 +338,15 @@ func (ws *EtnaWS) onPong(data string) error {
 	return nil
 }
 
-// goReceive is a goroutine that continuously reads WebSocket messages, extracts the topic,
+// goReceiver is a goroutine that continuously reads WebSocket messages, extracts the topic,
 // and dispatches them to the onMessage handler. It also handles disconnections, potential panics,
 // and initiates reconnection attempts.
-func (ws *EtnaWS) goReceive() {
+func (ws *EtnaWS) goReceiver() {
 	defer (*ws).logger.Info("receiver finished")
 	defer func() {
 		if errMsg := recover(); errMsg != nil {
 			(*ws).logger.Error("receiver got panic: %+v\n%s", errMsg, debug.Stack())
-			go (*ws).goReceive()
+			go (*ws).goReceiver()
 		} else {
 			select {
 			case <-(*ws).ctx.Done():
@@ -322,17 +379,48 @@ func (ws *EtnaWS) goReceive() {
 		}
 		(*ws).lastMsgTs.Store(time.Now().Unix())
 
-		if topic, err = getTopic(sockBuf); err != nil {
-			(*ws).logger.Error("WS topic: %+v, %s", err, sockBuf)
-			continue
-		} else if _, err = buffer.Write(sockBuf); err != nil {
+		if topic, err = getMessageType(sockBuf, false); err != nil {
+			if topic, err = getMessageType(sockBuf, true); err != nil {
+				(*ws).logger.Error("WS message has neither topic not cmd: %+v, %s", err, sockBuf)
+				continue
+			}
+		}
+		if topic != sch.WSTopicQuote && topic != sch.WSCmdPing {
+			(*ws).logger.Debug("<-- %s", sockBuf)
+		}
+		if _, err = buffer.Write(sockBuf); err != nil {
 			(*ws).logger.Error("can't write to buffer %+v", err)
 			continue
-		}
-		if err = (*ws).onMessage(topic, dec); err != nil {
+		} else if err = (*ws).onMessage(topic, dec); err != nil {
 			(*ws).logger.Error("message processing fault: %s, %+v", topic, err)
 		}
 		buffer.Reset()
+	}
+}
+
+// goSender is a goroutine that continuously reads WebSocket messages, extracts the topic,
+func (ws *EtnaWS) goSender() {
+	defer (*ws).logger.Info("sender finished")
+	(*ws).wg.Add(1)
+	defer (*ws).wg.Done()
+
+	var (
+		err error
+		req []byte
+	)
+
+loop:
+	for connected := (*ws).connected.Load(); connected; connected = (*ws).connected.Load() {
+		select {
+		case <-(*ws).ctx.Done():
+			break loop
+		case req = <-(*ws).reqChan:
+			if err = (*(*ws).conn).WriteMessage(gws.TextMessage, req); err != nil {
+				(*ws).logger.Error("can't send message %+v, %+v", req, err)
+				continue
+			}
+			(*ws).logger.Debug("--> %s", req)
+		}
 	}
 }
 
@@ -371,16 +459,22 @@ func (ws *EtnaWS) goPing() {
 	}
 }
 
-// getTopic extracts the topic string from a raw WebSocket message byte slice.
-// It checks for a specific prefix and searches for the topic.
-func getTopic(data []byte) (string, error) {
-	if data[0] != 123 || !bytes.Equal(data[1:14], sch.EntytyType) {
+// getMessageType extracts the message type from a raw WebSocket message byte slice.
+func getMessageType(data []byte, isCmd bool) (string, error) {
+	end := 15
+	searchField := sch.FieldEntytyType
+	if isCmd {
+		end = 8
+		searchField = sch.FieldCmd
+	}
+	if data[0] != 123 || string(data[1:end]) != searchField {
 		return "", fmt.Errorf("wrong data")
 	}
+
 	res := ""
-	for i := 15; i < len(data)-2; i++ {
+	for i := end + 1; i < len(data)-2; i++ {
 		if data[i] == 34 {
-			res = string(data[15:i])
+			res = string(data[end+1 : i])
 			break
 		}
 	}

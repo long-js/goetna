@@ -1,31 +1,36 @@
 package schema
 
-import "time"
+import (
+	"time"
+
+	gjson "github.com/goccy/go-json"
+)
 
 type Account struct {
-	Id               int    `json:"Id"`
 	ClearingAccount  string `json:"ClearingAccount"`
 	AccessType       string `json:"AccessType"`
 	MarginType       string `json:"MarginType"`
 	OwnerType        string `json:"OwnerType"`
-	Enabled          bool   `json:"Enabled"`
 	ClearingFirm     string `json:"ClearingFirm"`
+	Id               uint32 `json:"Id"`
+	Enabled          bool   `json:"Enabled"`
 	IsAverageAccount bool   `json:"IsAverageAccount"`
 	Owners           []struct {
-		UserId     int       `json:"UserId"`
 		FirstName  string    `json:"FirstName"`
 		MiddleName string    `json:"MiddleName"`
 		LastName   string    `json:"LastName"`
 		Login      string    `json:"Login"`
 		Email      string    `json:"Email"`
-		Role       int       `json:"Role"`
 		AddedDate  time.Time `json:"AddedDate"`
-		Salutation string    `json:"Salutation"`
-		Suffix     string    `json:"Suffix"`
+		UserId     int32     `json:"UserId"`
+		Role       int8      `json:"Role"`
 	} `json:"Owners"`
 }
 
 type TradingBalance struct {
+	AccountId string `json:"AccountId"`
+	Items     string `json:"Items"`
+
 	Cash    float64 `json:"cash"`    // The amount of funds available on the trading account.
 	NetCash float64 `json:"netCash"` // The amount of funds available on the account minus the options margin requirement.
 
@@ -58,7 +63,69 @@ type TradingBalance struct {
 	TotalPL                 float64 `json:"totalPL"`
 }
 
-type TradingBalanceValue struct {
+func (tb TradingBalance) Parse() error {
+	values := make([]BalanceValue, 0, 10)
+	if err := gjson.Unmarshal([]byte(tb.Items), &values); err != nil {
+		return err
+	}
+
+	for _, v := range values {
+		switch v.Name {
+		case "cash":
+			tb.Cash = v.Value
+		case "netCash":
+			tb.NetCash = v.Value
+		case "excess":
+			tb.Excess = v.Value
+		case "changeAbsolute":
+			tb.ChangeAbsolute = v.Value
+		case "changePercent":
+			tb.ChangePercent = v.Value
+		case "equityTotal":
+			tb.EquityTotal = v.Value
+		case "pendingOrdersCount":
+			tb.PendingOrdersCount = v.Value
+		case "netLiquidity":
+			tb.NetLiquidity = v.Value
+		case "stockLongMarketValue":
+			tb.StockLongMarketValue = v.Value
+		case "stockShortMarketValue":
+			tb.StockShortMarketValue = v.Value
+		case "optionLongMarketValue":
+			tb.OptionLongMarketValue = v.Value
+		case "optionShortMarketValue":
+			tb.OptionShortMarketValue = v.Value
+		case "dayTrades":
+			tb.DayTrades = v.Value
+		case "stockBuyingPower":
+			tb.StockBuyingPower = v.Value
+		case "optionBuyingPower":
+			tb.OptionBuyingPower = v.Value
+		case "pendingCash":
+			tb.PendingCash = v.Value
+		case "maintenanceMargin":
+			tb.MaintenanceMargin = v.Value
+		case "optionMaintenanceMargin":
+			tb.OptionMaintenanceMargin = v.Value
+		case "openPL":
+			tb.OpenPL = v.Value
+		case "closePL":
+			tb.ClosePL = v.Value
+		case "marketValue":
+			tb.MarketValue = v.Value
+		case "totalPL":
+			tb.TotalPL = v.Value
+		}
+	}
+	return nil
+}
+
+type BalanceValue struct {
+	Name  string  `json:"Name"`
+	Value float64 `json:"Value"`
+}
+
+type BalanceHistoryValue struct {
 	Date  time.Time `json:"Date"`
 	Value float64   `json:"Value"`
 }

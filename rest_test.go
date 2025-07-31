@@ -4,6 +4,8 @@ package goetna
 
 import (
 	"context"
+	"encoding/base64"
+	"os"
 	"testing"
 	"time"
 
@@ -18,13 +20,25 @@ type TestTable map[string]struct {
 	expect map[string]interface{}
 }
 
-var rest, ctx = createREST()
+var rest, ctx = createREST(false)
 
-func createREST() (*EtnaREST, context.Context) {
+func loadCreds() ([]byte, []byte) {
+	login := []byte(os.Getenv("ETNA_LOGIN"))
+	passwd := []byte(os.Getenv("ETNA_PASSWD"))
+	bLogin := make([]byte, base64.StdEncoding.EncodedLen(len(login)))
+	bPwd := make([]byte, base64.StdEncoding.EncodedLen(len(passwd)))
+	base64.StdEncoding.Encode(bLogin, login)
+	base64.StdEncoding.Encode(bPwd, passwd)
+	return bLogin, bPwd
+}
+
+func createREST(isPrivate bool) (*EtnaREST, context.Context) {
+	key := os.Getenv("ETNA_KEY")
+	l, p := loadCreds()
+
 	c := context.Background()
-	r := NewEtnaREST("ZmE5ZWE0ZWEtZTU5OS00YmRhLTllNmItYmI0NDEzYWFjZWIz",
-		"BA-2500556-development", "aq9YxL#Ds*")
-	if err := r.authenticate(c); err != nil {
+	r := NewEtnaREST(key, isPrivate)
+	if err := r.Authenticate(c, l, p); err != nil {
 		panic(err)
 	}
 	return r, c
@@ -84,7 +98,7 @@ func TestGetBars(t *testing.T) {
 }
 
 func TestGetSecurity(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err error
 		sec sch.Security
@@ -96,6 +110,9 @@ func TestGetSecurity(t *testing.T) {
 		"NVDA": {
 			arg:    "NVDA",
 			expect: map[string]interface{}{"symbol": "NVDA", "tickSize": .01}},
+		"AAPL": {
+			arg:    "AAPL",
+			expect: map[string]interface{}{"symbol": "AAPL", "tickSize": .01}},
 	}
 	for name, tc := range tests {
 		(*t).Run(name, func(t *testing.T) {
@@ -113,14 +130,28 @@ func TestGetSecurity(t *testing.T) {
 
 func TestGetUser(t *testing.T) {
 	// (*t).Skip()
-	var (
-		err  error
-		resp sch.UserInfo
-	)
-	if resp, err = rest.GetUser(ctx); err != nil {
+	if resp, err := rest.GetUser(ctx); err != nil {
 		(*t).Error(err)
 	} else if resp.UserId == 0 || resp.Login == "" {
 		(*t).Errorf("wrong user info: %+v", resp)
+	}
+}
+
+func TestGetUserSettings(t *testing.T) {
+	(*t).Skip()
+	if resp, err := rest.GetUserSettings(ctx); err != nil {
+		(*t).Error(err)
+	} else {
+		(*t).Logf("user trading settings: %+v", resp)
+	}
+}
+
+func TestGetAvailableExchanges(t *testing.T) {
+	(*t).Skip()
+	if resp, err := rest.GetAvailableExchanges(ctx); err != nil {
+		(*t).Error(err)
+	} else {
+		(*t).Logf("EXCHs: %+v", resp)
 	}
 }
 
@@ -165,7 +196,7 @@ func TestGetBalanceHistory(t *testing.T) {
 	(*t).Skip()
 	var (
 		err  error
-		bals []sch.TradingBalanceValue
+		bals []sch.BalanceHistoryValue
 	)
 	fmt := "2006-01-02T15:04:05.999999Z"
 	fromTs := time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC).Format(fmt)
@@ -174,6 +205,15 @@ func TestGetBalanceHistory(t *testing.T) {
 		(*t).Error(err)
 	} else {
 		(*t).Logf("BALS: %+v\n", bals)
+	}
+}
+
+func TestGetTransfers(t *testing.T) {
+	(*t).Skip()
+	if resp, err := rest.GetTransfers(ctx, 292); err != nil {
+		(*t).Error(err)
+	} else {
+		(*t).Logf("TRANSES: %+v", resp)
 	}
 }
 
@@ -276,7 +316,7 @@ func TestGetStreamers(t *testing.T) {
 }
 
 func TestRecoverSession(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err          error
 		respD, respQ sch.SessionId

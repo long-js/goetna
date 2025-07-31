@@ -3,6 +3,7 @@ package goetna
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,10 +14,13 @@ import (
 	sch "github.com/khokhlomin/goetna/schema"
 )
 
-func NewEtnaREST(apiKey, userName, passwd string) *EtnaREST {
-	rest := EtnaREST{
-		httpClient: &http.Client{Timeout: 12000000000}, enc: gschema.NewEncoder(),
-		apiKey: apiKey, userName: userName, passwd: passwd}
+func NewEtnaREST(apiKey string, isPrivate bool) *EtnaREST {
+	rest := EtnaREST{httpClient: &http.Client{Timeout: 12000000000}, enc: gschema.NewEncoder()}
+	if isPrivate {
+		rest.url = defaultConfig.RestUrlPriv
+	} else {
+		rest.url = defaultConfig.RestUrlPub
+	}
 	header := make(http.Header)
 	header["User-Agent"] = []string{"qant-backend/2.0"}
 	header["Content-Type"] = []string{"application/json"}
@@ -28,10 +32,10 @@ func NewEtnaREST(apiKey, userName, passwd string) *EtnaREST {
 }
 
 type EtnaREST struct {
-	httpClient               *http.Client
-	restHeader               http.Header
-	enc                      *gschema.Encoder
-	apiKey, userName, passwd string
+	httpClient *http.Client
+	restHeader http.Header
+	enc        *gschema.Encoder
+	url        string
 }
 
 func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query url.Values,
@@ -46,9 +50,9 @@ func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query
 	)
 	// query
 	if query != nil {
-		uri = fmt.Sprintf("%s%s?%s", defaultConfig.RestUrl, endpoint, query.Encode())
+		uri = fmt.Sprintf("%s%s?%s", (*api).url, endpoint, query.Encode())
 	} else {
-		uri = fmt.Sprintf("%s%s", defaultConfig.RestUrl, endpoint)
+		uri = fmt.Sprintf("%s%s", (*api).url, endpoint)
 	}
 	// body
 	if data != nil {
@@ -61,10 +65,10 @@ func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query
 	}
 	if req, err = http.NewRequestWithContext(ctx, method, uri, buffer); err != nil {
 		return fmt.Errorf("request creation fault: %w", err)
-	} else {
+	} else if len(bData) > 0 {
 		(*api).restHeader["Content-Length"] = []string{fmt.Sprintf("%d", len(bData))}
-		(*req).Header = (*api).restHeader
 	}
+	(*req).Header = (*api).restHeader
 
 	fmt.Printf("--> %s %s %s\n", method, endpoint, bData)
 	resp, err = (*api).httpClient.Do(req)
@@ -127,14 +131,20 @@ func (api *EtnaREST) readBody(resp *http.Response, result interface{}) error {
 // It sets the Username and Password headers and calls the "token" API endpoint.
 // If the authentication fails (either due to an API error or the SFA state not being "Succeeded"),
 // it returns an error.
-func (api *EtnaREST) authenticate(ctx context.Context) error {
+func (api *EtnaREST) Authenticate(ctx context.Context, login, passwd []byte) error {
 	var (
-		err error
-		sfa sch.SFA
+		err      error
+		sfa      sch.SFA
+		decLogin = make([]byte, base64.StdEncoding.DecodedLen(len(login)))
+		decPwd   = make([]byte, base64.StdEncoding.DecodedLen(len(passwd)))
 	)
-
-	(*api).restHeader["Username"] = []string{(*api).userName}
-	(*api).restHeader["Password"] = []string{(*api).passwd}
+	if _, err = base64.StdEncoding.Decode(decLogin, login); err != nil {
+		return fmt.Errorf("wrong username %+v", err)
+	} else if _, err = base64.StdEncoding.Decode(decPwd, passwd); err != nil {
+		return fmt.Errorf("wrong password %+v", err)
+	}
+	(*api).restHeader["Username"] = []string{string(bytes.Trim(decLogin, "\x00"))}
+	(*api).restHeader["Password"] = []string{string(bytes.Trim(decPwd, "\x00"))}
 	err = (*api).callAPI(ctx, http.MethodPost, "token", nil, nil, &sfa)
 	if err != nil || sfa.State != "Succeeded" {
 		return fmt.Errorf("authentication failed: %s %s, %s, %+v", sfa.State, sfa.Step, sfa.Reason, err)
@@ -186,6 +196,15 @@ func (api *EtnaREST) GetUser(ctx context.Context) (sch.UserInfo, error) {
 	return resp, nil
 }
 
+// GetUserSettings retrieves the authenticated user's trading settings.
+func (api *EtnaREST) GetUserSettings(ctx context.Context) (sch.UserTradingSettings, error) {
+	var resp sch.UserTradingSettings
+	if err := (*api).callAPI(ctx, http.MethodGet, "v1.0/users/@me/settings/trading", nil, nil, &resp); err != nil {
+		return resp, fmt.Errorf("getUserSettings failed: %+v", err)
+	}
+	return resp, nil
+}
+
 func (api *EtnaREST) ModifyUser(ctx context.Context) error {
 	return nil
 }
@@ -197,6 +216,16 @@ func (api *EtnaREST) UpdateUserPasswd(ctx context.Context) error {
 /*
  * Accounts, balances, positions
  */
+
+// GetAvailableExchanges retrieves the list of user's available exchanges.
+func (api *EtnaREST) GetAvailableExchanges(ctx context.Context) ([]string, error) {
+	var resp = make([]string, 0, 5)
+	err := (*api).callAPI(ctx, http.MethodGet, "v1.0/users/@me/exchanges", nil, nil, &resp)
+	if err != nil {
+		return resp, fmt.Errorf("getAvailableExchanges failed: %+v", err)
+	}
+	return resp, nil
+}
 
 // GetUserAccounts retrieves a slice of user accounts for the authenticated user.
 func (api *EtnaREST) GetUserAccounts(ctx context.Context) ([]sch.Account, error) {
@@ -220,8 +249,8 @@ func (api *EtnaREST) GetBalance(ctx context.Context, accId uint32) (sch.TradingB
 
 // GetBalanceHistory retrieves a slice of sch.TradingBalanceValue for the specified account of authenticated user.
 func (api *EtnaREST) GetBalanceHistory(ctx context.Context, accId uint32,
-	fromTs, tillTs string) ([]sch.TradingBalanceValue, error) {
-	var resp []sch.TradingBalanceValue
+	fromTs, tillTs string) ([]sch.BalanceHistoryValue, error) {
+	var resp []sch.BalanceHistoryValue
 
 	qry := url.Values{"startDate": {fromTs}, "endDate": {tillTs}, "step": {"1"}}
 	err := (*api).callAPI(ctx, http.MethodGet, fmt.Sprintf("v1.0/accounts/%d/history", accId), qry, nil, &resp)
@@ -247,8 +276,15 @@ func (api *EtnaREST) GetPositions(ctx context.Context, accId uint32) ([]sch.Posi
  * Transfers
  */
 
-func (api *EtnaREST) GetTransfers(ctx context.Context) error {
-	return nil
+func (api *EtnaREST) GetTransfers(ctx context.Context, accId uint32) ([]sch.Transfer, error) {
+	var resp sch.RespTransfers
+
+	qry := url.Values{"pageNumber": {"0"}, "pageSize": {"99"}, "sortBy": {"TransferDate"}, "isDesc": {"false"}}
+	err := (*api).callAPI(ctx, http.MethodGet, fmt.Sprintf("v1.0/accounts/%d/transfers", accId), qry, nil, &resp)
+	if err != nil {
+		return resp.Result, fmt.Errorf("getTransfers failed: %+v", err)
+	}
+	return resp.Result, nil
 }
 
 /*
@@ -323,7 +359,7 @@ func (api *EtnaREST) CancelOrder(ctx context.Context, accId uint32, orderId int6
 }
 
 /*
- * Security parameters, bars
+ * Market data (securities, bars, etc)
  */
 
 // GetSecurity retrieves details for a specific security by its symbol.
@@ -332,6 +368,9 @@ func (api *EtnaREST) GetSecurity(ctx context.Context, symbol string) (sch.Securi
 	err := (*api).callAPI(ctx, http.MethodGet, fmt.Sprintf("v1.0/equities/%s", symbol), nil, nil, &resp)
 	if err != nil {
 		return resp, fmt.Errorf("getSecurity failed: %+v", err)
+	}
+	if _, exist := NasdaqMICs[resp.Exchange]; exist {
+		resp.Exchange = NASDAQ
 	}
 	return resp, nil
 }
