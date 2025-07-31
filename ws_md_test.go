@@ -20,10 +20,10 @@ func createWS(private bool) *EtnaWS {
 	l, p := loadCreds()
 	if private {
 		sessType = schema.WSSessData
-		stream.Url = defaultConfig.WSUrlPriv
+		stream.Url = DefaultConfig.WSUrlPriv
 	} else {
 		sessType = schema.WSSessQuote
-		stream.Url = defaultConfig.WSUrlPub
+		stream.Url = DefaultConfig.WSUrlPub
 	}
 	if stream.SessionId, err = (*rest).RecoverStreamerSession(ctx, sessType); err != nil || stream.SessionId == "" {
 		if resp, err := (*rest).GetStreamers(ctx); err != nil {

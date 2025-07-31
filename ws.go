@@ -23,7 +23,7 @@ type ConnState uint32
 type ConnHandler func()
 type DisconnHandler func(code int, text string) error
 
-// NewEtnaWS creates the instance of EtnaWS, connects it to th e `url` and starts receive and ping goroutines.
+// NewEtnaWS creates the instance of EtnaWS, connects it to th e `baseUrl` and starts receive and ping goroutines.
 func NewEtnaWS(url string, login, passwd []byte, streamSessId sch.SessionId, logger Logger, hdlConn ConnHandler,
 	hdlDisconn DisconnHandler) *EtnaWS {
 	ws := EtnaWS{

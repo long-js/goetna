@@ -33,11 +33,10 @@ func loadCreds() ([]byte, []byte) {
 }
 
 func createREST(isPrivate bool) (*EtnaREST, context.Context) {
-	key := os.Getenv("ETNA_KEY")
 	l, p := loadCreds()
 
 	c := context.Background()
-	r := NewEtnaREST(key, isPrivate)
+	r := NewEtnaREST(os.Getenv("ETNA_KEY"), os.Getenv("ETNA_HIST_TOKEN"), isPrivate)
 	if err := r.Authenticate(c, l, p); err != nil {
 		panic(err)
 	}
@@ -45,44 +44,32 @@ func createREST(isPrivate bool) (*EtnaREST, context.Context) {
 }
 
 func TestGetBars(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err  error
-		bars []sch.Bar
+		bars []sch.BarHist
 	)
 	tests := TestTable{
-		"TSLA_1h RTH": {
+		"AAPL_1h": {
 			arg: sch.ReqBars{
-				Security: sch.ReqBarsSecurity{Symbol: "TSLA"},
-				Settings: sch.ReqBarsSettings{
-					StartDate: time.Date(2025, 4, 17, 0, 0, 0, 0, time.UTC).Unix(),
-					EndDate:   time.Date(2025, 4, 18, 0, 0, 0, 0, time.UTC).Unix(),
-					Count:     -1, Period: "1h"}},
-			expect: map[string]interface{}{"count": 7}},
-		"TSLA_1h non-RTH": {
+				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
+					StartDate: "2025-06-02", EndDate: "2025-06-03", Tf: "1h"}},
+			expect: map[string]interface{}{"count": 32}},
+		"AAPL_1h eq_date": {
 			arg: sch.ReqBars{
-				Security: sch.ReqBarsSecurity{Symbol: "TSLA"},
-				Settings: sch.ReqBarsSettings{
-					StartDate: time.Date(2025, 4, 16, 0, 0, 0, 0, time.UTC).Unix(),
-					EndDate:   time.Date(2025, 4, 18, 0, 0, 0, 0, time.UTC).Unix(),
-					Count:     -1, Period: "1h", IncludeNonRTH: true}},
+				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
+					StartDate: "2025-06-03", EndDate: "2025-06-03", Tf: "1h"}},
 			expect: map[string]interface{}{"count": 16}},
-		"TSLA_1h eq_date": {
+		"AAPL_15m": {
 			arg: sch.ReqBars{
-				Security: sch.ReqBarsSecurity{Symbol: "TSLA"},
-				Settings: sch.ReqBarsSettings{
-					StartDate: time.Date(2025, 4, 16, 0, 0, 0, 0, time.UTC).Unix(),
-					EndDate:   time.Date(2025, 4, 16, 0, 0, 0, 0, time.UTC).Unix(),
-					Count:     -1, Period: "1h"}},
-			expect: map[string]interface{}{"count": 0}},
-		"NVDA_15m": {
+				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
+					StartDate: "2025-06-02", EndDate: "2025-06-03", Tf: "15m"}},
+			expect: map[string]interface{}{"count": 128}},
+		"AAPL_1m": {
 			arg: sch.ReqBars{
-				Security: sch.ReqBarsSecurity{Symbol: "NVDA"},
-				Settings: sch.ReqBarsSettings{
-					StartDate: time.Date(2025, 4, 16, 0, 0, 0, 0, time.UTC).Unix(),
-					EndDate:   time.Date(2025, 4, 17, 0, 0, 0, 0, time.UTC).Unix(),
-					Count:     -1, Period: "15m"}},
-			expect: map[string]interface{}{"count": 16}},
+				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
+					StartDate: "2025-06-03", EndDate: "2025-06-03", Tf: "1m"}},
+			expect: map[string]interface{}{"count": 951}},
 	}
 	for name, tc := range tests {
 		(*t).Run(name, func(t *testing.T) {
@@ -98,7 +85,7 @@ func TestGetBars(t *testing.T) {
 }
 
 func TestGetSecurity(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err error
 		sec sch.Security
@@ -129,7 +116,7 @@ func TestGetSecurity(t *testing.T) {
 }
 
 func TestGetUser(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	if resp, err := rest.GetUser(ctx); err != nil {
 		(*t).Error(err)
 	} else if resp.UserId == 0 || resp.Login == "" {
@@ -316,7 +303,7 @@ func TestGetStreamers(t *testing.T) {
 }
 
 func TestRecoverSession(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err          error
 		respD, respQ sch.SessionId
