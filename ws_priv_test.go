@@ -5,7 +5,7 @@ package goetna
 import (
 	"testing"
 
-	"github.com/khokhlomin/goetna/schema"
+	"github.com/long-js/goetna/schema"
 )
 
 func TestWsSubscription(t *testing.T) {
@@ -23,7 +23,7 @@ func TestWsSubscription(t *testing.T) {
 		(*t).Error(err)
 	}
 
-	for cnt := 0; cnt < 10; cnt++ {
+	for cnt := 0; cnt < 20; cnt++ {
 		select {
 		case d := <-(*ws).BalanceChan:
 			(*t).Logf("BAL: %+v\n", d)

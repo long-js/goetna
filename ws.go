@@ -16,18 +16,19 @@ import (
 
 	gjson "github.com/goccy/go-json"
 	gws "github.com/gorilla/websocket"
-	sch "github.com/khokhlomin/goetna/schema"
+	sch "github.com/long-js/goetna/schema"
 )
 
 type ConnState uint32
-type ConnHandler func()
+type ConnHandler func(name string)
 type DisconnHandler func(code int, text string) error
 
 // NewEtnaWS creates the instance of EtnaWS, connects it to th e `baseUrl` and starts receive and ping goroutines.
-func NewEtnaWS(url string, login, passwd []byte, streamSessId sch.SessionId, logger Logger, hdlConn ConnHandler,
+func NewEtnaWS(name, url string, login, passwd []byte, streamSessId sch.SessionId, logger Logger, hdlConn ConnHandler,
 	hdlDisconn DisconnHandler) *EtnaWS {
 	ws := EtnaWS{
-		mu: sync.Mutex{}, url: url, login: login, passwd: passwd, streamSessId: streamSessId, logger: logger,
+		mu: sync.Mutex{}, name: name, url: url, login: login, passwd: passwd, streamSessId: streamSessId,
+		logger:     logger,
 		hdlConnect: hdlConn, hdlDisconnect: hdlDisconn, subsciptions: map[string][]sch.Subscription{}}
 	ws.ctx, ws.ctxCancel = context.WithCancel(context.Background())
 	ws.reqChan = make(chan []byte, 100)
@@ -40,7 +41,7 @@ func NewEtnaWS(url string, login, passwd []byte, streamSessId sch.SessionId, log
 }
 
 type EtnaWS struct {
-	url                      string
+	url, name                string
 	streamSessId, userSessId sch.SessionId
 	userId                   int32
 	login, passwd            []byte
@@ -65,7 +66,7 @@ type EtnaWS struct {
 	OrdersChan    chan sch.Order
 }
 
-// IsConnected returns the current connection status of the WebSocket client.
+// IsOperational returns the current connection status of the WebSocket client.
 //
 // Returns:
 //
@@ -87,6 +88,10 @@ func (ws *EtnaWS) Start() error {
 		time.Sleep(1 * time.Second)
 	}
 	return nil
+}
+
+func (ws *EtnaWS) Stop() {
+	(*ws).ctxCancel()
 }
 
 // connect establishes a new WebSocket connection to the Etna API.
@@ -323,7 +328,7 @@ func (ws *EtnaWS) onMessage(topic string, dec *gjson.Decoder) error {
 		}
 		(*ws).userSessId = sch.SessionId(msg["SessionId"])
 		(*ws).hasSession.Store(true)
-		(*ws).hdlConnect()
+		(*ws).hdlConnect((*ws).name)
 		(*ws).logger.Info("Websocket session created: %s", msg["SessionId"])
 	default:
 		return fmt.Errorf("wrong message %s", topic)
@@ -405,14 +410,15 @@ func (ws *EtnaWS) goSender() {
 	defer (*ws).wg.Done()
 
 	var (
-		err error
-		req []byte
+		err  error
+		req  []byte
+		done = (*ws).ctx.Done()
 	)
 
 loop:
 	for connected := (*ws).connected.Load(); connected; connected = (*ws).connected.Load() {
 		select {
-		case <-(*ws).ctx.Done():
+		case <-done:
 			break loop
 		case req = <-(*ws).reqChan:
 			if err = (*(*ws).conn).WriteMessage(gws.TextMessage, req); err != nil {
@@ -430,13 +436,14 @@ loop:
 func (ws *EtnaWS) goPing() {
 	defer (*ws).logger.Info("pinger finished")
 
+	done := (*ws).ctx.Done()
 	ticker := time.NewTicker(time.Second).C
 	for now := range ticker {
 		if !(*ws).connected.Load() {
 			break
 		}
 		select {
-		case <-(*ws).ctx.Done():
+		case <-done:
 			return
 		default:
 			lastTs := (*ws).lastMsgTs.Load()

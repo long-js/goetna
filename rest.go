@@ -11,16 +11,20 @@ import (
 
 	gjson "github.com/goccy/go-json"
 	gschema "github.com/gorilla/schema"
-	sch "github.com/khokhlomin/goetna/schema"
+	sch "github.com/long-js/goetna/schema"
 )
 
-func NewEtnaREST(apiKey, histToken string, isPrivate bool) *EtnaREST {
+func NewEtnaREST(apiKey, histToken string, isPrivate bool, logger Logger) *EtnaREST {
 	rest := EtnaREST{httpClient: &http.Client{Timeout: 12000000000}, enc: gschema.NewEncoder()}
 	if isPrivate {
 		rest.baseUrl = DefaultConfig.RestUrlPriv
 	} else {
 		rest.baseUrl = DefaultConfig.RestUrlPub
 	}
+	if logger != nil {
+		rest.log = logger
+	}
+
 	header := make(http.Header)
 	// header["User-Agent"] = []string{"qant-backend/2.0"}
 	header["Content-Type"] = []string{"application/json"}
@@ -41,6 +45,7 @@ type EtnaREST struct {
 	restHeader, restHistHeader http.Header
 	enc                        *gschema.Encoder
 	baseUrl                    string
+	log                        Logger
 }
 
 func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query url.Values,
@@ -84,19 +89,13 @@ func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query
 		(*req).Header = (*api).restHistHeader
 	}
 
-	fmt.Printf("--> %s %s", method, endpoint)
-	if sQry != "" {
-		fmt.Printf(" [%s]", sQry)
-	}
-	if len(bData) > 0 {
-		fmt.Printf(" [[%s]]", bData)
-	}
-	fmt.Printf("\n")
+	(*api).log.Debug("--> %s %s Q:[%s] B:[[%s]]", method, endpoint, sQry, bData)
+
 	resp, err = (*api).httpClient.Do(req)
 	defer func() {
 		if resp != nil {
 			if err = resp.Body.Close(); err != nil {
-				fmt.Printf("can't close response body %+v\n", err)
+				(*api).log.Error("can't close response body %+v\n", err)
 			}
 		}
 	}()
@@ -138,7 +137,7 @@ func (api *EtnaREST) readBody(resp *http.Response, result interface{}) error {
 	if buf, err = io.ReadAll(resp.Body); err != nil || len(buf) == 1 {
 		return fmt.Errorf("error reading v2 response body: %w", err)
 	}
-	fmt.Printf("REST: %s\n", buf)
+	(*api).log.Debug("REST: %s", buf)
 	if err = gjson.Unmarshal(buf, result); err != nil {
 		if res, ok := result.(*sch.Response); ok {
 			return fmt.Errorf("API error: %v", res)
@@ -363,7 +362,8 @@ func (api *EtnaREST) ReplaceOrder(ctx context.Context, accId uint32, orderId int
 	error) {
 	var resp sch.Order
 
-	err := (*api).callAPI(ctx, http.MethodPut, fmt.Sprintf("v1.0/accounts/%d/orders/%d", accId, orderId), nil, params, &resp, false)
+	err := (*api).callAPI(ctx, http.MethodPut, fmt.Sprintf("v1.0/accounts/%d/orders/%d", accId, orderId),
+		nil, params, &resp, false)
 	if err != nil {
 		return resp, fmt.Errorf("replaceOrder failed: %+v", err)
 	}

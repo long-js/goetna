@@ -18,7 +18,7 @@ type Bar struct {
 	IsMarket    bool `json:"IsMarket"` // Indicates if the bar is positioned during the RTH (true).
 }
 
-func (b Bar) Parse(values map[string]string) error {
+func (b *Bar) Parse(values map[string]string) error {
 	var err error
 
 	for k, v := range values {

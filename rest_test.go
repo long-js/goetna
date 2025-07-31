@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	sch "github.com/khokhlomin/goetna/schema"
+	sch "github.com/long-js/goetna/schema"
 )
 
 const AccId = 292
@@ -36,7 +36,7 @@ func createREST(isPrivate bool) (*EtnaREST, context.Context) {
 	l, p := loadCreds()
 
 	c := context.Background()
-	r := NewEtnaREST(os.Getenv("ETNA_KEY"), os.Getenv("ETNA_HIST_TOKEN"), isPrivate)
+	r := NewEtnaREST(os.Getenv("ETNA_KEY"), os.Getenv("ETNA_HIST_TOKEN"), isPrivate, ColouredLogger("REST"))
 	if err := r.Authenticate(c, l, p); err != nil {
 		panic(err)
 	}
@@ -53,23 +53,23 @@ func TestGetBars(t *testing.T) {
 		"AAPL_1h": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-07-22", EndDate: "2025-07-23 14:00", Tf: "1h"}},
+					StartDate: "2025-07-24", EndDate: "2025-07-24 14:00", Tf: "1h"}},
 			expect: map[string]interface{}{"count": 32}},
 		"AAPL_1h eq_date": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-07-23", EndDate: "2025-07-23", Tf: "1h"}},
+					StartDate: "2025-07-24", EndDate: "2025-07-24", Tf: "1h"}},
 			expect: map[string]interface{}{"count": 16}},
 		"AAPL_15m": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-07-22", EndDate: "2025-07-23", Tf: "15m"}},
+					StartDate: "2025-07-24", EndDate: "2025-07-24", Tf: "15m"}},
 			expect: map[string]interface{}{"count": 128}},
 		"AAPL_1m": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-07-23", EndDate: "2025-07-23", Tf: "1m"}},
-			expect: map[string]interface{}{"count": 952}},
+					StartDate: "2025-07-24", EndDate: "2025-07-24", Tf: "1m"}},
+			expect: map[string]interface{}{"count": 951}},
 	}
 	for name, tc := range tests {
 		(*t).Run(name, func(t *testing.T) {

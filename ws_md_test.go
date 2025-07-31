@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/khokhlomin/goetna/schema"
+	"github.com/long-js/goetna/schema"
 )
 
 func createWS(private bool) *EtnaWS {
@@ -35,11 +35,11 @@ func createWS(private bool) *EtnaWS {
 		}
 		stream.Url, _ = strings.CutSuffix(stream.Url, ":443")
 	}
-	return NewEtnaWS(stream.Url, l, p, stream.SessionId, ColouredLogger("WSData"), onConnect, onDisconnect)
+	return NewEtnaWS("TestWS", stream.Url, l, p, stream.SessionId, ColouredLogger("WSData"), onConnect, onDisconnect)
 }
 
-func onConnect() {
-	fmt.Println("Connected callback")
+func onConnect(name string) {
+	fmt.Printf("Connected callback %s", name)
 }
 
 func onDisconnect(code int, text string) error {

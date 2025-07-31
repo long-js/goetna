@@ -63,7 +63,7 @@ type TradingBalance struct {
 	TotalPL                 float64 `json:"totalPL"`
 }
 
-func (tb TradingBalance) Parse() error {
+func (tb *TradingBalance) Parse() error {
 	values := make([]BalanceValue, 0, 10)
 	if err := gjson.Unmarshal([]byte(tb.Items), &values); err != nil {
 		return err

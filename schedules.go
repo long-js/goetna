@@ -1,6 +1,6 @@
 package goetna
 
-import "github.com/khokhlomin/goetna/schema"
+import "github.com/long-js/goetna/schema"
 
 // BaseSchedules contains the time of morning, regular and evening trading sessions
 var BaseSchedules = map[string]schema.MarketSchedule{

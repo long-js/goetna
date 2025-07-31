@@ -1,4 +1,4 @@
-module github.com/khokhlomin/goetna
+module github.com/long-js/goetna
 
 go 1.22
 

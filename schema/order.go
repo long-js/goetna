@@ -67,8 +67,9 @@ type OrderParams struct {
 	// Expiration            time.Time       `json:"ExpireDate,omitempty"` // The order'll be cancelled automatically after the specified time.
 	Symbol                string            `json:"Symbol"`
 	ClientId              string            `json:"ClientId,omitempty"` // The order ID on the client's side.
-	Type                  OrderType         `json:"Type"`               // Possible values are: Market, Limit, Stop, Stop Limit.
-	Side                  OrderSide         `json:"Side"`               // Possible values are: Buy, Sell, SellShort, BuyToCover.
+	BotName               string            `json:"-"`
+	Type                  OrderType         `json:"Type"` // Possible values are: Market, Limit, Stop, Stop Limit.
+	Side                  OrderSide         `json:"Side"` // Possible values are: Buy, Sell, SellShort, BuyToCover.
 	Comment               string            `json:"Comment,omitempty"`
 	ExecInst              string            `json:"ExecInst,omitempty"` // The possible value: AllOrNone.
 	TimeInforce           TimeInForce       `json:"TimeInforce"`        // The period in which the order will be active.
