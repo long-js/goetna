@@ -58,7 +58,7 @@ type BarHist struct {
 	Time   BarHistTime `json:"date"`
 }
 
-const BarHistTimeLayout = "2006-02-01 15:04:05"
+const BarHistTimeLayout = "2006-01-02 15:04:05"
 
 type BarHistTime time.Time
 

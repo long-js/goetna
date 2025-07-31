@@ -53,23 +53,23 @@ func TestGetBars(t *testing.T) {
 		"AAPL_1h": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-06-02", EndDate: "2025-06-03", Tf: "1h"}},
+					StartDate: "2025-07-22", EndDate: "2025-07-23 14:00", Tf: "1h"}},
 			expect: map[string]interface{}{"count": 32}},
 		"AAPL_1h eq_date": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-06-03", EndDate: "2025-06-03", Tf: "1h"}},
+					StartDate: "2025-07-23", EndDate: "2025-07-23", Tf: "1h"}},
 			expect: map[string]interface{}{"count": 16}},
 		"AAPL_15m": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-06-02", EndDate: "2025-06-03", Tf: "15m"}},
+					StartDate: "2025-07-22", EndDate: "2025-07-23", Tf: "15m"}},
 			expect: map[string]interface{}{"count": 128}},
 		"AAPL_1m": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-06-03", EndDate: "2025-06-03", Tf: "1m"}},
-			expect: map[string]interface{}{"count": 951}},
+					StartDate: "2025-07-23", EndDate: "2025-07-23", Tf: "1m"}},
+			expect: map[string]interface{}{"count": 952}},
 	}
 	for name, tc := range tests {
 		(*t).Run(name, func(t *testing.T) {
@@ -290,7 +290,7 @@ func TestPlaceOrder(t *testing.T) {
 }
 
 func TestGetStreamers(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err  error
 		resp sch.Streamers

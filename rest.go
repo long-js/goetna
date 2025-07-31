@@ -46,19 +46,20 @@ type EtnaREST struct {
 func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query url.Values,
 	data, result interface{}, isBarHistory bool) error {
 	var (
-		err    error
-		bData  []byte
-		req    *http.Request
-		resp   *http.Response
-		buffer *bytes.Buffer
-		uri    string
+		err       error
+		bData     []byte
+		req       *http.Request
+		resp      *http.Response
+		buffer    *bytes.Buffer
+		uri, sQry string
 	)
 	// query
 	if query != nil {
+		sQry = query.Encode()
 		if !isBarHistory {
-			uri = fmt.Sprintf("%s%s?%s", (*api).baseUrl, endpoint, query.Encode())
+			uri = fmt.Sprintf("%s%s?%s", (*api).baseUrl, endpoint, sQry)
 		} else {
-			uri = fmt.Sprintf("%s%s?%s", DefaultConfig.RestUrlHist, endpoint, query.Encode())
+			uri = fmt.Sprintf("%s%s?%s", DefaultConfig.RestUrlHist, endpoint, sQry)
 		}
 	} else {
 		uri = fmt.Sprintf("%s%s", (*api).baseUrl, endpoint)
@@ -83,7 +84,14 @@ func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query
 		(*req).Header = (*api).restHistHeader
 	}
 
-	fmt.Printf("--> %s %s %s\n", method, endpoint, bData)
+	fmt.Printf("--> %s %s", method, endpoint)
+	if sQry != "" {
+		fmt.Printf(" [%s]", sQry)
+	}
+	if len(bData) > 0 {
+		fmt.Printf(" [[%s]]", bData)
+	}
+	fmt.Printf("\n")
 	resp, err = (*api).httpClient.Do(req)
 	defer func() {
 		if resp != nil {
