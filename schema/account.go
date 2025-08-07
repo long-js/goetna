@@ -8,6 +8,7 @@ import (
 
 type Account struct {
 	ClearingAccount  string `json:"ClearingAccount"`
+	Currency         string `json:"Currency"`
 	AccessType       string `json:"AccessType"`
 	MarginType       string `json:"MarginType"`
 	OwnerType        string `json:"OwnerType"`

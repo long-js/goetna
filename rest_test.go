@@ -13,8 +13,6 @@ import (
 	sch "github.com/long-js/goetna/schema"
 )
 
-const AccId = 292
-
 type TestTable map[string]struct {
 	arg    interface{}
 	expect map[string]interface{}
@@ -44,7 +42,7 @@ func createREST(isPrivate bool) (*EtnaREST, context.Context) {
 }
 
 func TestGetBars(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err  error
 		bars []sch.BarHist
@@ -143,7 +141,7 @@ func TestGetAvailableExchanges(t *testing.T) {
 }
 
 func TestGetUserAccounts(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err  error
 		accs []sch.Account
@@ -154,20 +152,13 @@ func TestGetUserAccounts(t *testing.T) {
 		(*t).Logf("ACCOUNS: %+v\n", accs)
 		// [
 		// 	{"Id":292,"ClearingAccount":"292","AccessType":"Owner","MarginType":"Cash",
-		// 		"OwnerType":"IndividualCustomer","Enabled":true,"ClearingFirm":"PaperTrading", "IsAverageAccount":false,
-		// 		"Owners":[
-		// 			{"UserId":1006,"FirstName":"NVB","MiddleName":"","LastName":"Admin","Login":"nvb.admin",
-		// 				"Email":"mgoihman@nvbrokerage.com","Role":0,"AddedDate":"2023-12-27T15:03:04.1672738Z",
-		// 				"Salutation":"NoSalutation","Suffix":"NoSuffix","DateOfBirth":"0001-01-01T00:00:00Z"},
-		// 			{"UserId":1215,"FirstName":"A","MiddleName":"","LastName":"Zubrilov","Login":"BA-2500556-development",
-		// 				"Email":"azubrilov@gmail.com","Role":0,"AddedDate":"2025-04-16T08:43:42.2069549Z",
-		// 				"Salutation":"NoSalutation","Suffix":"NoSuffix","DateOfBirth":"0001-01-01T00:00:00Z"}],
+		// 		"OwnerType":"IndividualCustomer",
 		// 		"Currency":"USD"}]
 	}
 }
 
 func TestGetBalance(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err error
 		bal sch.TradingBalance
@@ -205,7 +196,7 @@ func TestGetTransfers(t *testing.T) {
 }
 
 func TestGetPositions(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err   error
 		poses []sch.Position
@@ -218,7 +209,7 @@ func TestGetPositions(t *testing.T) {
 }
 
 func TestGetOrders(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err  error
 		ords []sch.Order
@@ -248,8 +239,9 @@ func TestGetOrder(t *testing.T) {
 func TestPlaceOrder(t *testing.T) {
 	(*t).Skip()
 	var (
-		err error
-		ord sch.Order
+		err   error
+		ord   sch.Order
+		AccId = uint32(292)
 	)
 	tests := TestTable{
 		"Limit Buy": {
@@ -264,14 +256,14 @@ func TestPlaceOrder(t *testing.T) {
 				Side: sch.SideSell},
 			expect: map[string]interface{}{"symbol": "TSLA", "qty": 1., "side": "Sell", "cid": "LS001", "comment": ""}},
 	}
-	active := make([]int64, 0, len(tests))
+	active := make([]uint64, 0, len(tests))
 	for name, tc := range tests {
 		(*t).Run(name, func(t *testing.T) {
 			params := tc.arg.(sch.OrderParams)
 			if ord, err = rest.PlaceOrder(ctx, AccId, &params); err != nil {
 				(*t).Error(err)
-			} else if err = rest.CancelOrder(ctx, AccId, ord.Id); err != nil {
-				(*t).Error(err)
+			} else {
+				active = append(active, ord.Id)
 			}
 			d1 := cmp.Diff(tc.expect["symbol"].(string), ord.Symbol)
 			d2 := cmp.Diff(tc.expect["qty"].(float64), ord.Quantity)

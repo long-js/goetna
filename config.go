@@ -1,6 +1,12 @@
 package goetna
 
-import "time"
+import (
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/joho/godotenv"
+)
 
 type EtnaConfig struct {
 	RestUrlPub, RestUrlHist, RestUrlPriv string
@@ -11,17 +17,23 @@ type EtnaConfig struct {
 }
 
 func defaultConfig() *EtnaConfig {
-	return &EtnaConfig{
-		RestTimeout: 12000000000,
-		RestUrlPub:  "https://pub-api-nvb-demo-prod.etnasoft.us/api/",
+	_ = godotenv.Load()
+	cfg := EtnaConfig{
+		RestTimeout: 12000000000, WSPingTimeout: 30, WSMaxSilentPeriod: 7000000000,
 		RestUrlHist: "https://back-dev2.nvbrokerage.com/api/",
-		// RestUrlPub:        "https://pub-api-nvb-live-prod.etnasoft.us/api/",
-		RestUrlPriv:       "https://priv-api-nvb-demo-prod.etnasoft.us/api/",
-		WSUrlPub:          "wss://md-str-nvb-demo-prod.etnasoft.us",
-		WSUrlPriv:         "wss://oms-str-nvb-demo-prod.etnasoft.us",
-		WSPingTimeout:     30,
-		WSMaxSilentPeriod: 7000000000,
 	}
+	if isTest, err := strconv.ParseBool(os.Getenv("TEST_ENV")); err != nil || !isTest {
+		cfg.RestUrlPub = "https://pub-api-nvb-live-prod.etnasoft.us/api/"
+		cfg.RestUrlPriv = "https://priv-api-nvb-live-prod.etnasoft.us/api/"
+		cfg.WSUrlPub = "wss://md-str-nvb-live-prod.etnasoft.us"
+		cfg.WSUrlPriv = "wss://oms-str-nvb-live-prod.etnasoft.us"
+	} else {
+		cfg.RestUrlPub = "https://pub-api-nvb-demo-prod.etnasoft.us/api/"
+		cfg.RestUrlPriv = "https://priv-api-nvb-demo-prod.etnasoft.us/api/"
+		cfg.WSUrlPub = "wss://md-str-nvb-demo-prod.etnasoft.us"
+		cfg.WSUrlPriv = "wss://oms-str-nvb-demo-prod.etnasoft.us"
+	}
+	return &cfg
 }
 
 var DefaultConfig = defaultConfig()

@@ -3,7 +3,11 @@ package schema
 import "time"
 
 type Order struct {
-	Id                      int64          `json:"Id"`
+	Id                      uint64         `json:"Id"`
+	RequestId               int64          `json:"RequestId"`
+	ParentRequestId         int64          `json:"ParentRequestId"`
+	StateId                 int64          `json:"StateId"`
+	ParentId                int64          `json:"ParentId"`
 	Quantity                float64        `json:"Quantity"`
 	Price                   float64        `json:"Price"`
 	StopPrice               float64        `json:"StopPrice"` // When this price is reached, the order will automatically be converted into a market order.
@@ -13,12 +17,8 @@ type Order struct {
 	LeavesQuantity          float64        `json:"LeavesQuantity"`
 	AveragePrice            float64        `json:"AveragePrice"`
 	BrokerServiceCommission float64        `json:"BrokerServiceCommission"`
-	AccountId               int64          `json:"AccountId"`
-	UserId                  int64          `json:"UserId"`
-	RequestId               int64          `json:"RequestId"`
-	ParentRequestId         int64          `json:"ParentRequestId"`
-	StateId                 int64          `json:"StateId"`
-	ParentId                int64          `json:"ParentId"`
+	AccountId               uint32         `json:"AccountId"`
+	UserId                  uint32         `json:"UserId"`
 	Date                    time.Time      `json:"Date"`
 	TransactionDate         time.Time      `json:"TransactionDate"`
 	ExpireDate              time.Time      `json:"ExpireDate"` // The expiration of the order.
@@ -26,7 +26,7 @@ type Order struct {
 	Currency                string         `json:"Currency"`
 	ClientId                string         `json:"ClientId"` // The order ID on the client's side.
 	Side                    OrderSide      `json:"Side"`
-	Status                  string         `json:"Status"`
+	Status                  OrderStatus    `json:"Status"`
 	ExecutionStatus         string         `json:"ExecutionStatus"`
 	Type                    OrderType      `json:"Type"`
 	RequestStatus           string         `json:"RequestStatus"`

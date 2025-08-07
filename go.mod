@@ -7,4 +7,5 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/gorilla/schema v1.4.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/joho/godotenv v1.5.1
 )

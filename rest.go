@@ -358,7 +358,8 @@ func (api *EtnaREST) PlaceOrder(ctx context.Context, accId uint32, params *sch.O
 }
 
 // ReplaceOrder modifies an existing order for a specific account.
-func (api *EtnaREST) ReplaceOrder(ctx context.Context, accId uint32, orderId int64, params *sch.OrderParams) (sch.Order,
+func (api *EtnaREST) ReplaceOrder(ctx context.Context, accId uint32, orderId uint64,
+	params *sch.OrderParams) (sch.Order,
 	error) {
 	var resp sch.Order
 
@@ -371,7 +372,7 @@ func (api *EtnaREST) ReplaceOrder(ctx context.Context, accId uint32, orderId int
 }
 
 // CancelOrder cancels an existing order for a specific account.
-func (api *EtnaREST) CancelOrder(ctx context.Context, accId uint32, orderId int64) error {
+func (api *EtnaREST) CancelOrder(ctx context.Context, accId uint32, orderId uint64) error {
 	err := (*api).callAPI(ctx, http.MethodDelete, fmt.Sprintf("v1.0/accounts/%d/orders/%d", accId, orderId), nil, nil, nil, false)
 	if err != nil {
 		return fmt.Errorf("cancelOrder failed: %+v", err)
