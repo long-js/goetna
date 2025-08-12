@@ -3,19 +3,26 @@ package goetna
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 
 	gjson "github.com/goccy/go-json"
 	gschema "github.com/gorilla/schema"
 	sch "github.com/long-js/goetna/schema"
 )
 
-func NewEtnaREST(apiKey, histToken string, isPrivate bool, logger Logger) *EtnaREST {
-	rest := EtnaREST{httpClient: &http.Client{Timeout: 12000000000}, enc: gschema.NewEncoder()}
+func NewEtnaREST(apiKey, histToken string, login, passwd []byte, isPrivate bool, logger Logger) (*EtnaREST, error) {
+	var tr *http.Transport
+	if isTest, err := strconv.ParseBool(os.Getenv("TEST_ENV")); err == nil && isTest {
+		tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	}
+	rest := EtnaREST{httpClient: &http.Client{Timeout: 12000000000, Transport: tr}, enc: gschema.NewEncoder()}
 	if isPrivate {
 		rest.baseUrl = DefaultConfig.RestUrlPriv
 	} else {
@@ -37,7 +44,13 @@ func NewEtnaREST(apiKey, histToken string, isPrivate bool, logger Logger) *EtnaR
 	header.Del("Et-App-Key")
 	header["Authorization"] = []string{fmt.Sprintf("Bearer %s", histToken)}
 	rest.restHistHeader = header
-	return &rest
+
+	c := context.Background()
+	if err := rest.authenticate(c, login, passwd); err != nil {
+		return nil, err
+	}
+
+	return &rest, nil
 }
 
 type EtnaREST struct {
@@ -151,7 +164,7 @@ func (api *EtnaREST) readBody(resp *http.Response, result interface{}) error {
 // It sets the Username and Password headers and calls the "token" API endpoint.
 // If the authentication fails (either due to an API error or the SFA state not being "Succeeded"),
 // it returns an error.
-func (api *EtnaREST) Authenticate(ctx context.Context, login, passwd []byte) error {
+func (api *EtnaREST) authenticate(ctx context.Context, login, passwd []byte) error {
 	var (
 		err      error
 		sfa      sch.SFA
@@ -359,8 +372,7 @@ func (api *EtnaREST) PlaceOrder(ctx context.Context, accId uint32, params *sch.O
 
 // ReplaceOrder modifies an existing order for a specific account.
 func (api *EtnaREST) ReplaceOrder(ctx context.Context, accId uint32, orderId uint64,
-	params *sch.OrderParams) (sch.Order,
-	error) {
+	params *sch.OrderParams) (sch.Order, error) {
 	var resp sch.Order
 
 	err := (*api).callAPI(ctx, http.MethodPut, fmt.Sprintf("v1.0/accounts/%d/orders/%d", accId, orderId),

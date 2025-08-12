@@ -4,22 +4,22 @@ import "time"
 
 // Position...
 type Position struct {
-	Id                   int       `json:"Id"`
-	AccountId            int       `json:"AccountId"`
-	SecurityId           int       `json:"SecurityId"`
-	MinContractSize      int       `json:"ContractSize"`
-	Quantity             int       `json:"Quantity"`
-	RealizedProfitLoss   int       `json:"RealizedProfitLoss"`
-	AverageClosePrice    int       `json:"AverageClosePrice"`
-	StopLossPrice        int       `json:"StopLossPrice"`
-	TakeProfitPrice      int       `json:"TakeProfitPrice"`
-	DailyCloseProfitLoss int       `json:"DailyCloseProfitLoss"`
-	ExcessChanges        int       `json:"ExcessChanges"`
-	DayQuantity          int       `json:"DayQuantity"`
+	AccountId            uint32    `json:"AccountId"`
+	Id                   uint32    `json:"Id"`
+	SecurityId           uint32    `json:"SecurityId"`
+	MinContractSize      uint32    `json:"ContractSize"`
+	Quantity             int64     `json:"Quantity"`
+	RealizedProfitLoss   float64   `json:"RealizedProfitLoss"`
+	AverageClosePrice    float64   `json:"AverageClosePrice"`
+	StopLossPrice        float64   `json:"StopLossPrice"`
+	TakeProfitPrice      float64   `json:"TakeProfitPrice"`
+	DailyCloseProfitLoss float64   `json:"DailyCloseProfitLoss"`
+	ExcessChanges        float64   `json:"ExcessChanges"`
 	CostBasis            float64   `json:"CostBasis"`
 	DailyCostBasis       float64   `json:"DailyCostBasis"`
 	AverageOpenPrice     float64   `json:"AverageOpenPrice"`
 	MarketValueEOD       float64   `json:"MarketValueEOD"`
+	DayQuantity          int       `json:"DayQuantity"`
 	Symbol               string    `json:"Symbol"`
 	Name                 string    `json:"Name"`
 	SecurityCurrency     string    `json:"SecurityCurrency"`

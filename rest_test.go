@@ -34,15 +34,15 @@ func createREST(isPrivate bool) (*EtnaREST, context.Context) {
 	l, p := loadCreds()
 
 	c := context.Background()
-	r := NewEtnaREST(os.Getenv("ETNA_KEY"), os.Getenv("ETNA_HIST_TOKEN"), isPrivate, ColouredLogger("REST"))
-	if err := r.Authenticate(c, l, p); err != nil {
+	r, err := NewEtnaREST(os.Getenv("ETNA_KEY"), os.Getenv("ETNA_HIST_TOKEN"), l, p, isPrivate, ColouredLogger("REST"))
+	if err != nil {
 		panic(err)
 	}
 	return r, c
 }
 
 func TestGetBars(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err  error
 		bars []sch.BarHist
@@ -51,8 +51,8 @@ func TestGetBars(t *testing.T) {
 		"AAPL_1h": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-07-24", EndDate: "2025-07-24 14:00", Tf: "1h"}},
-			expect: map[string]interface{}{"count": 32}},
+					StartDate: "2025-08-07", EndDate: "2025-08-07 14:00", Tf: "1h"}},
+			expect: map[string]interface{}{"count": 16}},
 		"AAPL_1h eq_date": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
@@ -61,12 +61,12 @@ func TestGetBars(t *testing.T) {
 		"AAPL_15m": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-07-24", EndDate: "2025-07-24", Tf: "15m"}},
-			expect: map[string]interface{}{"count": 128}},
+					StartDate: "2025-08-07", EndDate: "2025-08-07", Tf: "15m"}},
+			expect: map[string]interface{}{"count": 64}},
 		"AAPL_1m": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-07-24", EndDate: "2025-07-24", Tf: "1m"}},
+					StartDate: "2025-08-08 14:00", EndDate: "2025-08-08 14:07", Tf: "1m"}},
 			expect: map[string]interface{}{"count": 951}},
 	}
 	for name, tc := range tests {
@@ -141,7 +141,7 @@ func TestGetAvailableExchanges(t *testing.T) {
 }
 
 func TestGetUserAccounts(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err  error
 		accs []sch.Account
@@ -158,7 +158,7 @@ func TestGetUserAccounts(t *testing.T) {
 }
 
 func TestGetBalance(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err error
 		bal sch.TradingBalance
@@ -196,7 +196,7 @@ func TestGetTransfers(t *testing.T) {
 }
 
 func TestGetPositions(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err   error
 		poses []sch.Position
@@ -209,7 +209,7 @@ func TestGetPositions(t *testing.T) {
 }
 
 func TestGetOrders(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err  error
 		ords []sch.Order

@@ -73,6 +73,10 @@ func (bt *BarHistTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+func (bt *BarHistTime) Unix() int64 {
+	return time.Time(*bt).Unix()
+}
+
 func (bt BarHistTime) String() string {
 	return time.Time(bt).Format(time.DateTime)
 }

@@ -3,11 +3,13 @@ package goetna
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"sync"
@@ -99,8 +101,9 @@ func (ws *EtnaWS) Stop() {
 // and updates the connection status.
 func (ws *EtnaWS) connect() error {
 	var (
-		err error
-		uri string
+		err    error
+		uri    string
+		tlsCfg *tls.Config
 	)
 	if (*ws).conn != nil {
 		return fmt.Errorf("connection already exists")
@@ -111,7 +114,12 @@ func (ws *EtnaWS) connect() error {
 	header["User-Agent"] = []string{"qant/2.0"}
 	header["Accept-Encoding"] = []string{"gzip, deflate"}
 
-	dialer := gws.Dialer{EnableCompression: true, HandshakeTimeout: 45 * time.Second}
+	if isTest, err := strconv.ParseBool(os.Getenv("TEST_ENV")); err == nil && isTest {
+		tlsCfg = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	dialer := gws.Dialer{
+		EnableCompression: true, HandshakeTimeout: 45 * time.Second, TLSClientConfig: tlsCfg}
 	(*ws).logger.Info("connecting: %s", uri)
 	conn, response, err := dialer.DialContext((*ws).ctx, uri, header)
 	if err != nil {
@@ -410,9 +418,10 @@ func (ws *EtnaWS) goSender() {
 	defer (*ws).wg.Done()
 
 	var (
-		err  error
-		req  []byte
-		done = (*ws).ctx.Done()
+		err     error
+		req     []byte
+		done    = (*ws).ctx.Done()
+		cmdPong = "{\"Cmd\":\"Pong"
 	)
 
 loop:
@@ -425,7 +434,9 @@ loop:
 				(*ws).logger.Error("can't send message %+v, %+v", req, err)
 				continue
 			}
-			(*ws).logger.Debug("--> %s", req)
+			if string(req[:12]) != cmdPong {
+				(*ws).logger.Debug("--> %s", req)
+			}
 		}
 	}
 }
