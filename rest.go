@@ -17,7 +17,7 @@ import (
 	sch "github.com/long-js/goetna/schema"
 )
 
-func NewEtnaREST(apiKey, histToken string, login, passwd []byte, isPrivate bool, logger Logger) (*EtnaREST, error) {
+func NewEtnaREST(apiKey, nonRTHToken string, login, passwd []byte, isPrivate bool, logger Logger) (*EtnaREST, error) {
 	var tr *http.Transport
 	if isTest, err := strconv.ParseBool(os.Getenv("TEST_ENV")); err == nil && isTest {
 		tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
@@ -38,12 +38,12 @@ func NewEtnaREST(apiKey, histToken string, login, passwd []byte, isPrivate bool,
 	header["Accept"] = []string{"application/json"}
 	header["Connection"] = []string{"keep-alive"}
 	header["Et-App-Key"] = []string{apiKey}
-	rest.restHeader = header
+	rest.header = header
 
 	header = header.Clone()
 	header.Del("Et-App-Key")
-	header["Authorization"] = []string{fmt.Sprintf("Bearer %s", histToken)}
-	rest.restHistHeader = header
+	header["Authorization"] = []string{fmt.Sprintf("Bearer %s", nonRTHToken)}
+	rest.nonRTHHeader = header
 
 	c := context.Background()
 	if err := rest.authenticate(c, login, passwd); err != nil {
@@ -54,15 +54,15 @@ func NewEtnaREST(apiKey, histToken string, login, passwd []byte, isPrivate bool,
 }
 
 type EtnaREST struct {
-	httpClient                 *http.Client
-	restHeader, restHistHeader http.Header
-	enc                        *gschema.Encoder
-	baseUrl                    string
-	log                        Logger
+	httpClient           *http.Client
+	header, nonRTHHeader http.Header
+	enc                  *gschema.Encoder
+	baseUrl              string
+	log                  Logger
 }
 
 func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query url.Values,
-	data, result interface{}, isBarHistory bool) error {
+	data, result interface{}, isBars bool) error {
 	var (
 		err       error
 		bData     []byte
@@ -74,10 +74,10 @@ func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query
 	// query
 	if query != nil {
 		sQry = query.Encode()
-		if !isBarHistory {
+		if !isBars {
 			uri = fmt.Sprintf("%s%s?%s", (*api).baseUrl, endpoint, sQry)
 		} else {
-			uri = fmt.Sprintf("%s%s?%s", DefaultConfig.RestUrlHist, endpoint, sQry)
+			uri = fmt.Sprintf("%s%s?%s", DefaultConfig.RestUrlNonRTH, endpoint, sQry)
 		}
 	} else {
 		uri = fmt.Sprintf("%s%s", (*api).baseUrl, endpoint)
@@ -94,12 +94,12 @@ func (api *EtnaREST) callAPI(ctx context.Context, method, endpoint string, query
 	if req, err = http.NewRequestWithContext(ctx, method, uri, buffer); err != nil {
 		return fmt.Errorf("request creation fault: %w", err)
 	} else if len(bData) > 0 {
-		(*api).restHeader["Content-Length"] = []string{fmt.Sprintf("%d", len(bData))}
+		(*api).header["Content-Length"] = []string{fmt.Sprintf("%d", len(bData))}
 	}
-	if !isBarHistory {
-		(*req).Header = (*api).restHeader
+	if !isBars {
+		(*req).Header = (*api).header
 	} else {
-		(*req).Header = (*api).restHistHeader
+		(*req).Header = (*api).nonRTHHeader
 	}
 
 	(*api).log.Debug("--> %s %s Q:[%s] B:[[%s]]", method, endpoint, sQry, bData)
@@ -176,27 +176,38 @@ func (api *EtnaREST) authenticate(ctx context.Context, login, passwd []byte) err
 	} else if _, err = base64.StdEncoding.Decode(decPwd, passwd); err != nil {
 		return fmt.Errorf("wrong password %+v", err)
 	}
-	(*api).restHeader["Username"] = []string{string(bytes.Trim(decLogin, "\x00"))}
-	(*api).restHeader["Password"] = []string{string(bytes.Trim(decPwd, "\x00"))}
+	(*api).header["Username"] = []string{string(bytes.Trim(decLogin, "\x00"))}
+	(*api).header["Password"] = []string{string(bytes.Trim(decPwd, "\x00"))}
 	err = (*api).callAPI(ctx, http.MethodPost, "token", nil, nil, &sfa, false)
 	if err != nil || sfa.State != "Succeeded" {
 		return fmt.Errorf("authentication failed: %s %s, %s, %+v", sfa.State, sfa.Step, sfa.Reason, err)
 	}
-	(*api).restHeader.Del("Username")
-	(*api).restHeader.Del("Password")
-	(*api).restHeader["Authorization"] = []string{"Bearer " + sfa.Token}
+	(*api).header.Del("Username")
+	(*api).header.Del("Password")
+	(*api).header["Authorization"] = []string{"Bearer " + sfa.Token}
 	return nil
 }
 
 // GetStreamers retrieves a list of streamers from the API.
-func (api *EtnaREST) GetStreamers(ctx context.Context) (sch.Streamers, error) {
-	var resp sch.Streamers
-
-	err := (*api).callAPI(ctx, http.MethodGet, "v1.0/streamers", nil, nil, &resp, false)
-	if err != nil {
-		return resp, fmt.Errorf("getStreamers failed: %+v", err)
+func (api *EtnaREST) GetStreamers(ctx context.Context, isBars bool) (sch.Streamers, error) {
+	if isBars {
+		var resp sch.NVBStreamers
+		endpoint := "v1/market-data/streamers"
+		vals := url.Values{"quote_source_id": {"3"}}
+		err := (*api).callAPI(ctx, http.MethodGet, endpoint, vals, nil, &resp, isBars)
+		if err != nil {
+			return sch.Streamers{}, fmt.Errorf("getStreamers failed: %+v", err)
+		}
+		return resp.Data["3"]["streamers"], nil
+	} else {
+		var resp sch.Streamers
+		endpoint := "v1.0/streamers"
+		err := (*api).callAPI(ctx, http.MethodGet, endpoint, nil, nil, &resp, isBars)
+		if err != nil {
+			return resp, fmt.Errorf("getStreamers failed: %+v", err)
+		}
+		return resp, nil
 	}
-	return resp, nil
 }
 
 // RecoverStreamerSession attempts to recover a streamer session of the specified type.
@@ -403,9 +414,9 @@ func (api *EtnaREST) GetSecurity(ctx context.Context, symbol string) (sch.Securi
 	if err != nil {
 		return resp, fmt.Errorf("getSecurity failed: %+v", err)
 	}
-	if _, exist := NasdaqMICs[resp.Exchange]; exist {
-		resp.Exchange = NASDAQ
-	}
+	// if _, exist := NasdaqMICs[resp.Exchange]; exist {
+	// 	resp.Exchange = NASDAQ
+	// }
 	return resp, nil
 }
 

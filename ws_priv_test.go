@@ -10,7 +10,7 @@ import (
 
 func TestWsSubscription(t *testing.T) {
 	// (*t).Skip()
-	ws := createWS(true)
+	ws := createWS(true, false)
 
 	if err := (*ws).Start(); err != nil {
 		(*t).Error(err)

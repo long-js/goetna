@@ -1,6 +1,9 @@
 package schema
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 type Order struct {
 	Id                      uint64         `json:"Id"`
@@ -26,7 +29,8 @@ type Order struct {
 	Currency                string         `json:"Currency"`
 	ClientId                string         `json:"ClientId"` // The order ID on the client's side.
 	Side                    OrderSide      `json:"Side"`
-	Status                  OrderStatus    `json:"Status"`
+	Status                  string         `json:"Status"`
+	StatusId                OrderStatus    `json:"StatusId"`
 	ExecutionStatus         string         `json:"ExecutionStatus"`
 	Type                    OrderType      `json:"Type"`
 	RequestStatus           string         `json:"RequestStatus"`
@@ -38,9 +42,9 @@ type Order struct {
 	ExecInst                string         `json:"ExecInst"` // Indicates if the order should be filled either entirely in one transaction or not at all. Possible value: 'AllOrNone'.
 	Exchange                string         `json:"Exchange"` // The exchange on which the order should be executed.
 	ExecutionVenue          string         `json:"ExecutionVenue"`
-	InitialType             string         `json:"InitialType"`
+	InitialType             OrderType      `json:"InitialType"`
 	ExtendedHours           TradingSession `json:"ExtendedHours"` // If the order should be placed during the extended hours. (PRE, REG, REGPOST)
-	ExecBrocker             string         `json:"ExecBrocker"`
+	ExecBroker              string         `json:"ExecBroker"`
 	TransType               string         `json:"TransType"`
 	ExecId                  string         `json:"ExecId"`
 	QuantityQualifier       string         `json:"QuantityQualifier"`
@@ -50,6 +54,109 @@ type Order struct {
 		IP                 string `json:"IP"`
 	} `json:"ExecutionInstructions"`
 	IsExternal bool `json:"IsExternal"`
+}
+
+func (o *Order) Parse(values map[string]string) error {
+	var err error
+
+	for k, v := range values {
+		switch k {
+		case "Id":
+			if (*o).Id, err = strconv.ParseUint(v, 10, 64); err != nil {
+				return err
+			}
+		case "Quantity":
+			if (*o).Quantity, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		case "Price":
+			if (*o).Price, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		case "ExecutedQuantity":
+			if (*o).ExecutedQuantity, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		case "LastPrice":
+			if (*o).LastPrice, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		case "LastQuantity":
+			if (*o).LastQuantity, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		case "LeavesQuantity":
+			if (*o).LeavesQuantity, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		case "AveragePrice":
+			if (*o).AveragePrice, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		case "Side":
+			(*o).Side = OrderSide(v)
+		case "CreateDate":
+			if ts, err := strconv.ParseInt(v, 10, 64); err != nil {
+				return err
+			} else {
+				(*o).Date = time.UnixMilli(ts)
+			}
+		case "TransactionDate":
+			if ts, err := strconv.ParseInt(v, 10, 64); err != nil {
+				return err
+			} else {
+				(*o).TransactionDate = time.UnixMilli(ts)
+			}
+		case "Status":
+			(*o).Status = v
+		case "Type":
+			(*o).Type = OrderType(v)
+		case "TimeInForce":
+			(*o).TimeInforce = TimeInForce(v)
+		case "AccountId":
+			if aid, err := strconv.ParseUint(v, 10, 64); err != nil {
+				return err
+			} else {
+				(*o).AccountId = uint32(aid)
+			}
+		case "StopPrice":
+			if (*o).StopPrice, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		case "ExpireDate":
+			if ts, err := strconv.ParseInt(v, 10, 64); err != nil {
+				return err
+			} else {
+				(*o).ExpireDate = time.UnixMilli(ts)
+			}
+		case "StateId":
+			if stat, err := strconv.ParseInt(v, 10, 64); err != nil {
+				return err
+			} else {
+				(*o).StatusId = OrderStatus(stat)
+			}
+		case "Symbol":
+			(*o).Symbol = v
+		case "Exchange":
+			(*o).Exchange = v
+		case "Currency":
+			(*o).Currency = v
+		case "RejectReason":
+			(*o).Description = v
+		case "InitialType":
+			(*o).InitialType = OrderType(v)
+		case "ExtendedHours":
+			(*o).ExtendedHours = TradingSession(v)
+		case "BrokerServiceCommission":
+			if (*o).BrokerServiceCommission, err = strconv.ParseFloat(v, 64); err != nil {
+				return err
+			}
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type RespOrders struct {

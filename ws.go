@@ -120,10 +120,9 @@ func (ws *EtnaWS) connect() error {
 
 	dialer := gws.Dialer{
 		EnableCompression: true, HandshakeTimeout: 45 * time.Second, TLSClientConfig: tlsCfg}
-	(*ws).logger.Info("connecting: %s", uri)
 	conn, response, err := dialer.DialContext((*ws).ctx, uri, header)
 	if err != nil {
-		return fmt.Errorf("failed to connect: %+v, status: %s", err, (*response).Status)
+		return fmt.Errorf("failed to connect %s: status: %s, %+v", uri, (*response).Status, err)
 	}
 	conn.SetPongHandler((*ws).onPong)
 	if (*ws).hdlDisconnect != nil {
@@ -147,8 +146,9 @@ func (ws *EtnaWS) reconnect() {
 	for i := float64(0); i < 3<<8; i++ {
 		time.Sleep(time.Duration(math.Abs(sch.WSReconnInterval*10*math.Sin(i/(2*sch.WSReconnInterval))+i)+
 			sch.WSReconnInterval) * time.Second)
+		(*ws).conn = nil
 		if err = (*ws).Start(); err == nil {
-			// TODO check for automatic resubsciption after session's been resored.
+			// TODO check for automatic resubsciption after session's been restored.
 			// resubscribe
 			// for topic, subs := range (*ws).subsciptions {
 			// 	for sIdx := 0; sIdx < len(subs); sIdx++ {
@@ -182,6 +182,8 @@ func (ws *EtnaWS) createUrl() (string, error) {
 		v = url.Values{
 			"User":     {fmt.Sprintf("%d:%s", (*ws).userId, (*ws).userSessId)},
 			"Password": {string((*ws).streamSessId)}, "HttpClientType": {"WebSocket"}}
+	} else if (*ws).url == DefaultConfig.WSUrlPubNvb {
+		return (*ws).url, nil
 	} else if _, err = base64.StdEncoding.Decode(decL, (*ws).login); err != nil {
 		return "", fmt.Errorf("can't decode login %v", err)
 	} else if _, err = base64.StdEncoding.Decode(decP, (*ws).passwd); err != nil {
@@ -278,10 +280,10 @@ func (ws *EtnaWS) onMessage(topic string, dec *gjson.Decoder) error {
 		position sch.Position
 		order    sch.Order
 		sub      sch.Subscription
-		sBuf     = map[string]string{}
 	)
 	switch topic {
 	case sch.WSTopicQuote:
+		sBuf := map[string]string{}
 		if err = dec.Decode(&sBuf); err != nil {
 			return fmt.Errorf("quote decoding fault %+v", err)
 		} else if err = quote.Parse(sBuf); err != nil {
@@ -289,14 +291,19 @@ func (ws *EtnaWS) onMessage(topic string, dec *gjson.Decoder) error {
 		}
 		(*ws).QuotesChan <- quote
 	case sch.WSTopicCandle:
+		sBuf := map[string]string{}
 		if err = dec.Decode(&sBuf); err != nil {
 			return fmt.Errorf("bar decoding fault %+v", err)
 		} else if err = bar.Parse(sBuf); err != nil {
 			return fmt.Errorf("bar decoding fault %+v", err)
+		} else if bar.IsCompleted {
+			(*ws).BarsChan <- bar
 		}
-		(*ws).BarsChan <- bar
 	case sch.WSTopicOrder:
-		if err = dec.Decode(&order); err != nil {
+		sBuf := map[string]string{}
+		if err = dec.Decode(&sBuf); err != nil {
+			return fmt.Errorf("order decoding fault %+v", err)
+		} else if err = order.Parse(sBuf); err != nil {
 			return fmt.Errorf("order decoding fault %+v", err)
 		}
 		(*ws).OrdersChan <- order
@@ -398,7 +405,7 @@ func (ws *EtnaWS) goReceiver() {
 				continue
 			}
 		}
-		if topic != sch.WSTopicQuote && topic != sch.WSCmdPing {
+		if topic != sch.WSTopicCandle && topic != sch.WSTopicQuote && topic != sch.WSCmdPing {
 			(*ws).logger.Debug("<-- %s", sockBuf)
 		}
 		if _, err = buffer.Write(sockBuf); err != nil {

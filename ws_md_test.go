@@ -11,7 +11,7 @@ import (
 	"github.com/long-js/goetna/schema"
 )
 
-func createWS(private bool) *EtnaWS {
+func createWS(private, isNvb bool) *EtnaWS {
 	var (
 		err      error
 		sessType schema.WSSessionType
@@ -21,12 +21,18 @@ func createWS(private bool) *EtnaWS {
 	if private {
 		sessType = schema.WSSessData
 		stream.Url = DefaultConfig.WSUrlPriv
+		stream.SessionId, err = (*rest).RecoverStreamerSession(ctx, sessType)
 	} else {
 		sessType = schema.WSSessQuote
-		stream.Url = DefaultConfig.WSUrlPub
+		if isNvb {
+			stream.Url = DefaultConfig.WSUrlPubNvb
+		} else {
+			stream.Url = DefaultConfig.WSUrlPub
+			stream.SessionId, err = (*rest).RecoverStreamerSession(ctx, sessType)
+		}
 	}
-	if stream.SessionId, err = (*rest).RecoverStreamerSession(ctx, sessType); err != nil || stream.SessionId == "" {
-		if resp, err := (*rest).GetStreamers(ctx); err != nil {
+	if err != nil || stream.SessionId == "" {
+		if resp, err := (*rest).GetStreamers(ctx, true); err != nil {
 			panic(err)
 		} else if private {
 			stream = resp.DataAddresses[0]
@@ -49,7 +55,7 @@ func onDisconnect(code int, text string) error {
 
 func TestWsStart(t *testing.T) {
 	(*t).Skip()
-	ws := createWS(false)
+	ws := createWS(false, false)
 
 	if err := ws.Start(); err != nil {
 		(*t).Error(err)
@@ -60,18 +66,21 @@ func TestWsStart(t *testing.T) {
 
 func TestWsQuotes(t *testing.T) {
 	// (*t).Skip()
-	ws := createWS(false)
+	ws := createWS(false, false)
 
 	if err := (*ws).Start(); err != nil {
 		(*t).Error(err)
-		// } else if err = (*ws).Subscribe("Candle", "AAPL|NGS|USD:1m"); err != nil {
-	} else if err = (*ws).Subscribe(schema.WSTopicQuote, "3803"); err != nil {
+	} else if err = (*ws).Subscribe("Candle", "AAPL|NGS|USD:1m;AAPL|NGS|USD:15m"); err != nil {
+		// } else if err = (*ws).Subscribe(schema.WSTopicQuote, "3803"); err != nil {
 		(*t).Error(err)
 	}
 
 	for cnt := 0; cnt < 100; cnt++ {
-		q := <-(*ws).QuotesChan
-		(*t).Logf("QUOT: %s %f %f\n", q.Time, q.Last, q.Size)
-
+		select {
+		case q := <-(*ws).QuotesChan:
+			(*t).Logf("QUOT: %s %f %f\n", q.Time, q.Last, q.Size)
+		case bar := <-(*ws).BarsChan:
+			(*t).Logf("BAR: %+v\n", bar)
+		}
 	}
 }

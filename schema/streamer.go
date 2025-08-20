@@ -18,6 +18,11 @@ type Streamers struct {
 	DataAddresses  []Streamer `json:"DataAddresses"`
 }
 
+type NVBStreamers struct {
+	Success bool                            `json:"success"`
+	Data    map[string]map[string]Streamers `json:"data"`
+}
+
 type Subscription struct {
 	Cmd            string    `json:"Cmd"`
 	SessionId      SessionId `json:"SessionId"`

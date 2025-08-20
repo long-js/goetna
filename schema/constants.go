@@ -35,6 +35,27 @@ const (
 	StatusPendingReplace
 	StatusError
 )
+
+var OrderStatuses = map[string]OrderStatus{
+	"New":             StatusNew,
+	"PendingNew":      StatusNew,
+	"Partial":         StatusPartial,
+	"Filled":          StatusFilled,
+	"DoneDay":         StatusDoneDay,
+	"Canceled":        StatusCanceled,
+	"Replaced":        StatusReplaced,
+	"PendingCancel":   StatusPendingCancel,
+	"Stopped":         StatusStopped,
+	"Rejected":        StatusRejected,
+	"Suspended":       StatusSuspended,
+	"Pending":         StatusPending,
+	"Calculated":      StatusCalculated,
+	"Expired":         StatusExpired,
+	"AcceptedBidding": StatusAcceptedBidding,
+	"PendingReplace":  StatusPendingReplace,
+	"Error":           StatusError,
+}
+
 const (
 	// Day. The order automatically expires at the end of the regular trading session.
 	TimeInForceDay TimeInForce = "Day"

@@ -34,7 +34,7 @@ func createREST(isPrivate bool) (*EtnaREST, context.Context) {
 	l, p := loadCreds()
 
 	c := context.Background()
-	r, err := NewEtnaREST(os.Getenv("ETNA_KEY"), os.Getenv("ETNA_HIST_TOKEN"), l, p, isPrivate, ColouredLogger("REST"))
+	r, err := NewEtnaREST(os.Getenv("ETNA_KEY"), os.Getenv("ETNA_NRTH_TOKEN"), l, p, isPrivate, ColouredLogger("REST"))
 	if err != nil {
 		panic(err)
 	}
@@ -42,7 +42,7 @@ func createREST(isPrivate bool) (*EtnaREST, context.Context) {
 }
 
 func TestGetBars(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err  error
 		bars []sch.BarHist
@@ -219,7 +219,9 @@ func TestGetOrders(t *testing.T) {
 	} else if ords, err = rest.GetOrders(ctx, 292, false); err != nil {
 		(*t).Error(err)
 	} else {
-		(*t).Logf("ORDERS: %+v\n", ords)
+		for _, o := range ords {
+			(*t).Logf("ORDERS: %+v\n", o)
+		}
 	}
 }
 
@@ -281,13 +283,47 @@ func TestPlaceOrder(t *testing.T) {
 	}
 }
 
+func TestCancelOrder(t *testing.T) {
+	(*t).Skip()
+	var (
+		err   error
+		AccId = uint32(292)
+	)
+	if err = rest.CancelOrder(ctx, AccId, 1662); err != nil {
+		(*t).Error(err)
+	}
+}
+
 func TestGetStreamers(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err  error
 		resp sch.Streamers
 	)
-	if resp, err = rest.GetStreamers(ctx); err != nil {
+	// {"success":true,
+	// 	"data":{
+	// 		"2":
+	// 			{"streamers":{
+	// 				"QuoteAddresses":[
+	// 					{"Url":"wss:\/\/md-str-nvb-demo-prod.etnasoft.us:443","Type":"EntitlementBased",
+	// 						"SessionId":"8416f543-25b4-433d-9fab-6dfe61d12969"}],
+	// 				"DataAddresses":[
+	// 					{"Url":"wss:\/\/oms-str-nvb-demo-prod.etnasoft.us:443","Type":"delayed"}]
+	// 				},
+	// 			"credentials":{"user":"nvb.admin","password":"1234QWer"}
+	// 		},
+	// 		"3":{"streamers":{
+	// 				"QuoteAddresses":[
+	// 					{"Url":"wss:\/\/websockets.financialmodelingprep.com"}]
+	// 				},
+	// 			"credentials":{"api_key":"f56f77c1915aa10b46f58b5a62f8ea7a"}
+	// 		}
+	// 	},
+	// 	"links":[],
+	// 	"meta":[],
+	// 	"message":""}
+
+	if resp, err = rest.GetStreamers(ctx, true); err != nil {
 		(*t).Error(err)
 	} else {
 		(*t).Logf("STREAMERS: %+v\n", resp)
