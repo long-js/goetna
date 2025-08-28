@@ -7,5 +7,6 @@ type MarketSchedule struct {
 	MonClose uint32
 	EvnOpen  uint32
 	EvnClose uint32
+	GateOpen uint32
 	Delta    int32 // UTC delta
 }

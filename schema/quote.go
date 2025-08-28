@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type Quote struct {
+type EtnaQuote struct {
 	Time          QuoteTime
 	Ask           float64
 	Bid           float64
@@ -19,7 +19,7 @@ type Quote struct {
 	Type          string
 }
 
-func (q *Quote) Parse(values map[string]string) error {
+func (q *EtnaQuote) Parse(values map[string]string) error {
 	var err error
 
 	for k, v := range values {
@@ -73,4 +73,16 @@ func (qt *QuoteTime) UnmarshalJSON(b []byte) error {
 
 func (qt QuoteTime) String() string {
 	return time.Time(qt).Format(time.DateTime)
+}
+
+type FmpQuote struct {
+	NTs     int64   `json:"t"`
+	Ask     float64 `json:"ap"`
+	AskSize float64 `json:"as"`
+	Bid     float64 `json:"bp"`
+	BidSize float64 `json:"bs"`
+	Last    float64 `json:"lp"`
+	Size    float64 `json:"ls"`
+	Symbol  string  `json:"s"`
+	Type    string  `json:"type"`
 }

@@ -10,16 +10,17 @@ import (
 
 func TestWsSubscription(t *testing.T) {
 	// (*t).Skip()
-	ws := createWS(true, false)
+	ws := createEtnaWS(true)
 
 	if err := (*ws).Start(); err != nil {
 		(*t).Error(err)
 	}
-	if err := (*ws).Subscribe(schema.WSTopicOrder, "292"); err != nil {
+	accId := "421" // 292
+	if err := (*ws).Subscribe(schema.WSTopicOrder, accId); err != nil {
 		(*t).Error(err)
-	} else if err = (*ws).Subscribe(schema.WSTopicBalance, "292"); err != nil {
+	} else if err = (*ws).Subscribe(schema.WSTopicBalance, accId); err != nil {
 		(*t).Error(err)
-	} else if err = (*ws).Subscribe(schema.WSTopicPosition, "292"); err != nil {
+	} else if err = (*ws).Subscribe(schema.WSTopicPosition, accId); err != nil {
 		(*t).Error(err)
 	}
 

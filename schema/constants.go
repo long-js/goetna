@@ -17,44 +17,6 @@ const (
 	SideSellShort            = "SellShort"
 	SideBuyToCover           = "BuyToCover"
 )
-const (
-	StatusNew = OrderStatus(iota)
-	StatusPartial
-	StatusFilled
-	StatusDoneDay
-	StatusCanceled
-	StatusReplaced
-	StatusPendingCancel
-	StatusStopped
-	StatusRejected
-	StatusSuspended
-	StatusPending
-	StatusCalculated
-	StatusExpired
-	StatusAcceptedBidding
-	StatusPendingReplace
-	StatusError
-)
-
-var OrderStatuses = map[string]OrderStatus{
-	"New":             StatusNew,
-	"PendingNew":      StatusNew,
-	"Partial":         StatusPartial,
-	"Filled":          StatusFilled,
-	"DoneDay":         StatusDoneDay,
-	"Canceled":        StatusCanceled,
-	"Replaced":        StatusReplaced,
-	"PendingCancel":   StatusPendingCancel,
-	"Stopped":         StatusStopped,
-	"Rejected":        StatusRejected,
-	"Suspended":       StatusSuspended,
-	"Pending":         StatusPending,
-	"Calculated":      StatusCalculated,
-	"Expired":         StatusExpired,
-	"AcceptedBidding": StatusAcceptedBidding,
-	"PendingReplace":  StatusPendingReplace,
-	"Error":           StatusError,
-}
 
 const (
 	// Day. The order automatically expires at the end of the regular trading session.
@@ -89,14 +51,11 @@ var VALID_TFS = map[string]BarSize{
 */
 
 const (
-	WSReconnInterval  = 12 // base period in seconds for the reconnect period calculation
-	WSMaxSilentPeriod = 30 // maximum period of silence, seconds
-)
-const (
 	WSSessData  WSSessionType = 0 // data session
 	WSSessQuote WSSessionType = 1 // quote session
 )
 const (
+	// ETNA
 	WSTopicQuote    = "Quote"
 	WSTopicCandle   = "Candle"
 	WSTopicBalance  = "AccountBalance"
@@ -106,11 +65,19 @@ const (
 	WSCmdSub        = "Subscribe.txt"
 	WSCmdUnsub      = "Unsubscribe.txt"
 	WSCmdPing       = "Ping"
+
+	// FMP
+	WSEvtLogin   = "login"
+	WSEvtSub     = "subscribe"
+	WSEvtUnsub   = "unsubscribe"
+	WSEvtHB      = "heartbeat"
+	WSTopicEvent = "event"
 )
 
 const (
 	FieldEntytyType = "\"EntityType\": "
 	FieldCmd        = "\"Cmd\": "
+	FieldEvent      = "{\"event\":"
 )
 
 var WSPongMsg = []byte("{\"Cmd\":\"Pong\",\"StatusCode\":\"Ok\"}")

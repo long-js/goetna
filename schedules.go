@@ -11,6 +11,7 @@ var BaseSchedules = map[string]schema.MarketSchedule{
 		RegClose: 56700, // 15:45
 		EvnOpen:  57600, // 16:00
 		EvnClose: 72000, // 20:00
+		GateOpen: 29400, // 08:10
 		Delta:    -14400,
 	},
 }

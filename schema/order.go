@@ -30,7 +30,6 @@ type Order struct {
 	ClientId                string         `json:"ClientId"` // The order ID on the client's side.
 	Side                    OrderSide      `json:"Side"`
 	Status                  string         `json:"Status"`
-	StatusId                OrderStatus    `json:"StatusId"`
 	ExecutionStatus         string         `json:"ExecutionStatus"`
 	Type                    OrderType      `json:"Type"`
 	RequestStatus           string         `json:"RequestStatus"`
@@ -62,49 +61,29 @@ func (o *Order) Parse(values map[string]string) error {
 	for k, v := range values {
 		switch k {
 		case "Id":
-			if (*o).Id, err = strconv.ParseUint(v, 10, 64); err != nil {
-				return err
-			}
+			(*o).Id, err = strconv.ParseUint(v, 10, 64)
 		case "Quantity":
-			if (*o).Quantity, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).Quantity, err = strconv.ParseFloat(v, 64)
 		case "Price":
-			if (*o).Price, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).Price, err = strconv.ParseFloat(v, 64)
 		case "ExecutedQuantity":
-			if (*o).ExecutedQuantity, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).ExecutedQuantity, err = strconv.ParseFloat(v, 64)
 		case "LastPrice":
-			if (*o).LastPrice, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).LastPrice, err = strconv.ParseFloat(v, 64)
 		case "LastQuantity":
-			if (*o).LastQuantity, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).LastQuantity, err = strconv.ParseFloat(v, 64)
 		case "LeavesQuantity":
-			if (*o).LeavesQuantity, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).LeavesQuantity, err = strconv.ParseFloat(v, 64)
 		case "AveragePrice":
-			if (*o).AveragePrice, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).AveragePrice, err = strconv.ParseFloat(v, 64)
 		case "Side":
 			(*o).Side = OrderSide(v)
 		case "CreateDate":
-			if ts, err := strconv.ParseInt(v, 10, 64); err != nil {
-				return err
-			} else {
+			if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
 				(*o).Date = time.UnixMilli(ts)
 			}
 		case "TransactionDate":
-			if ts, err := strconv.ParseInt(v, 10, 64); err != nil {
-				return err
-			} else {
+			if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
 				(*o).TransactionDate = time.UnixMilli(ts)
 			}
 		case "Status":
@@ -114,26 +93,14 @@ func (o *Order) Parse(values map[string]string) error {
 		case "TimeInForce":
 			(*o).TimeInforce = TimeInForce(v)
 		case "AccountId":
-			if aid, err := strconv.ParseUint(v, 10, 64); err != nil {
-				return err
-			} else {
+			if aid, err := strconv.ParseUint(v, 10, 64); err == nil {
 				(*o).AccountId = uint32(aid)
 			}
 		case "StopPrice":
-			if (*o).StopPrice, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).StopPrice, err = strconv.ParseFloat(v, 64)
 		case "ExpireDate":
-			if ts, err := strconv.ParseInt(v, 10, 64); err != nil {
-				return err
-			} else {
+			if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
 				(*o).ExpireDate = time.UnixMilli(ts)
-			}
-		case "StateId":
-			if stat, err := strconv.ParseInt(v, 10, 64); err != nil {
-				return err
-			} else {
-				(*o).StatusId = OrderStatus(stat)
 			}
 		case "Symbol":
 			(*o).Symbol = v
@@ -148,9 +115,7 @@ func (o *Order) Parse(values map[string]string) error {
 		case "ExtendedHours":
 			(*o).ExtendedHours = TradingSession(v)
 		case "BrokerServiceCommission":
-			if (*o).BrokerServiceCommission, err = strconv.ParseFloat(v, 64); err != nil {
-				return err
-			}
+			(*o).BrokerServiceCommission, err = strconv.ParseFloat(v, 64)
 		}
 		if err != nil {
 			return err
@@ -192,7 +157,6 @@ type ExecInstructions struct {
 }
 
 type TimeInForce string
-type OrderStatus uint8
 type OrderSide string
 type OrderType string
 type ShowMode string

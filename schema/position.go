@@ -1,31 +1,84 @@
 package schema
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // Position...
 type Position struct {
-	AccountId            uint32    `json:"AccountId"`
-	Id                   uint32    `json:"Id"`
-	SecurityId           uint32    `json:"SecurityId"`
-	MinContractSize      uint32    `json:"ContractSize"`
-	Quantity             int64     `json:"Quantity"`
-	RealizedProfitLoss   float64   `json:"RealizedProfitLoss"`
-	AverageClosePrice    float64   `json:"AverageClosePrice"`
-	StopLossPrice        float64   `json:"StopLossPrice"`
-	TakeProfitPrice      float64   `json:"TakeProfitPrice"`
-	DailyCloseProfitLoss float64   `json:"DailyCloseProfitLoss"`
-	ExcessChanges        float64   `json:"ExcessChanges"`
-	CostBasis            float64   `json:"CostBasis"`
-	DailyCostBasis       float64   `json:"DailyCostBasis"`
-	AverageOpenPrice     float64   `json:"AverageOpenPrice"`
-	MarketValueEOD       float64   `json:"MarketValueEOD"`
-	DayQuantity          int       `json:"DayQuantity"`
-	Symbol               string    `json:"Symbol"`
-	Name                 string    `json:"Name"`
-	SecurityCurrency     string    `json:"SecurityCurrency"`
-	SecurityType         string    `json:"SecurityType"`
-	CreateDate           time.Time `json:"CreateDate"`
-	ModifyDate           time.Time `json:"ModifyDate"`
+	Quantity           int64   `json:"Quantity"`
+	RealizedProfitLoss float64 `json:"RealizedProfitLoss"`
+	StopLossPrice      float64 `json:"StopLossPrice"`
+	TakeProfitPrice    float64 `json:"TakeProfitPrice"`
+	CostBasis          float64 `json:"CostBasis"`
+	AverageOpenPrice   float64 `json:"AverageOpenPrice"`
+	MinContractSize    float64 `json:"ContractSize"`
+	AccountId          uint32  `json:"AccountId"`
+	Id                 uint32  `json:"Id"`
+	SecurityId         uint32  `json:"SecurityId"`
+	Symbol             string  `json:"Symbol"`
+	Exchange           string
+	SecurityCurrency   string    `json:"SecurityCurrency"`
+	SecurityType       string    `json:"SecurityType"`
+	CreateDate         time.Time `json:"CreateDate"`
+	ModifyDate         time.Time `json:"ModifyDate"`
+}
+
+func (p *Position) Parse(values map[string]string) error {
+	var err error
+
+	for k, v := range values {
+		switch k {
+		case "Id":
+			var pid64 uint64
+			if pid64, err = strconv.ParseUint(v, 10, 32); err == nil {
+				(*p).Id = uint32(pid64)
+			}
+		case "AccountId":
+			var pid64 uint64
+			if pid64, err = strconv.ParseUint(v, 10, 32); err == nil {
+				(*p).AccountId = uint32(pid64)
+			}
+		case "SecurityId":
+			var pid64 uint64
+			if pid64, err = strconv.ParseUint(v, 10, 32); err == nil {
+				(*p).SecurityId = uint32(pid64)
+			}
+		case "ContractSize":
+			(*p).MinContractSize, err = strconv.ParseFloat(v, 64)
+		case "Quantity":
+			(*p).Quantity, err = strconv.ParseInt(v, 10, 64)
+		case "RealizedProfitLoss":
+			(*p).RealizedProfitLoss, err = strconv.ParseFloat(v, 64)
+		case "CostBasis":
+			(*p).CostBasis, err = strconv.ParseFloat(v, 64)
+		case "AverageOpenPrice":
+			(*p).AverageOpenPrice, err = strconv.ParseFloat(v, 64)
+		case "Symbol":
+			(*p).Symbol = v
+		case "Exchange":
+			(*p).Exchange = v
+		case "Currency":
+			(*p).SecurityCurrency = v
+		case "SecurityType":
+			(*p).SecurityType = v
+		case "CreateDate":
+			var ms int64
+			if ms, err = strconv.ParseInt(v, 10, 64); err == nil {
+				(*p).CreateDate = time.UnixMilli(ms)
+			}
+		case "ModifyDate":
+			var ms int64
+			if ms, err = strconv.ParseInt(v, 10, 64); err == nil {
+				(*p).ModifyDate = time.UnixMilli(ms)
+			}
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type RespPositions struct {

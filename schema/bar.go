@@ -15,7 +15,7 @@ type Bar struct {
 	Volume      float64 `json:"Volume"`
 	Time        uint32  `json:"Time"`
 	IsCompleted bool
-	IsMarket    bool `json:"IsMarket"` // Indicates if the bar is positioned during the RTH (true).
+	IsRTH       bool `json:"IsMarket"` // Indicates if the bar is positioned during the RTH (true).
 	Key         string
 }
 
@@ -42,6 +42,8 @@ func (b *Bar) Parse(values map[string]string) error {
 			}
 		case "IsCompleted":
 			b.IsCompleted, err = strconv.ParseBool(v)
+		case "IsMarket":
+			b.IsRTH, err = strconv.ParseBool(v)
 		case "Key":
 			b.Key = v
 		}

@@ -18,11 +18,10 @@ import (
 )
 
 func NewEtnaREST(apiKey, nonRTHToken string, login, passwd []byte, isPrivate bool, logger Logger) (*EtnaREST, error) {
-	var tr *http.Transport
+	rest := EtnaREST{httpClient: &http.Client{Timeout: 12000000000}, enc: gschema.NewEncoder()}
 	if isTest, err := strconv.ParseBool(os.Getenv("TEST_ENV")); err == nil && isTest {
-		tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+		rest.httpClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	}
-	rest := EtnaREST{httpClient: &http.Client{Timeout: 12000000000, Transport: tr}, enc: gschema.NewEncoder()}
 	if isPrivate {
 		rest.baseUrl = DefaultConfig.RestUrlPriv
 	} else {
@@ -150,9 +149,9 @@ func (api *EtnaREST) readBody(resp *http.Response, result interface{}) error {
 	if buf, err = io.ReadAll(resp.Body); err != nil || len(buf) == 1 {
 		return fmt.Errorf("error reading v2 response body: %w", err)
 	}
-	(*api).log.Debug("REST: %s", buf)
+	(*api).log.Debug("REST: %s %s", (*(*resp).Request).Method, buf)
 	if err = gjson.Unmarshal(buf, result); err != nil {
-		if res, ok := result.(*sch.Response); ok {
+		if res, ok := result.(*sch.EtnaResponse); ok {
 			return fmt.Errorf("API error: %v", res)
 		}
 		return fmt.Errorf("can't unmarshal: %w", err)
@@ -189,20 +188,24 @@ func (api *EtnaREST) authenticate(ctx context.Context, login, passwd []byte) err
 }
 
 // GetStreamers retrieves a list of streamers from the API.
-func (api *EtnaREST) GetStreamers(ctx context.Context, isBars bool) (sch.Streamers, error) {
-	if isBars {
-		var resp sch.NVBStreamers
+func (api *EtnaREST) GetStreamers(ctx context.Context, isFMP bool) (sch.Streamers, error) {
+	if isFMP {
+		var resp sch.FmpStreamers
 		endpoint := "v1/market-data/streamers"
 		vals := url.Values{"quote_source_id": {"3"}}
-		err := (*api).callAPI(ctx, http.MethodGet, endpoint, vals, nil, &resp, isBars)
+		err := (*api).callAPI(ctx, http.MethodGet, endpoint, vals, nil, &resp, isFMP)
 		if err != nil {
 			return sch.Streamers{}, fmt.Errorf("getStreamers failed: %+v", err)
 		}
-		return resp.Data["3"]["streamers"], nil
+		if fmpStream, exist := resp.Data["3"]; exist {
+			fmpStream.Streamers.FMPKey = resp.Data["3"].Creds["api_key"]
+			resp.Data["3"] = fmpStream
+		}
+		return resp.Data["3"].Streamers, nil
 	} else {
 		var resp sch.Streamers
 		endpoint := "v1.0/streamers"
-		err := (*api).callAPI(ctx, http.MethodGet, endpoint, nil, nil, &resp, isBars)
+		err := (*api).callAPI(ctx, http.MethodGet, endpoint, nil, nil, &resp, isFMP)
 		if err != nil {
 			return resp, fmt.Errorf("getStreamers failed: %+v", err)
 		}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,32 +42,39 @@ func createREST(isPrivate bool) (*EtnaREST, context.Context) {
 	return r, c
 }
 
+/*
+	Public
+*/
+
 func TestGetBars(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err  error
 		bars []sch.BarHist
 	)
+	today := time.Now().In(time.UTC).Format("2006-01-02")
+	today_tm := time.Now().In(time.UTC).Format("2006-01-02 15:04")
+	// yesterday := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
 	tests := TestTable{
-		"AAPL_1h": {
-			arg: sch.ReqBars{
-				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-08-07", EndDate: "2025-08-07 14:00", Tf: "1h"}},
-			expect: map[string]interface{}{"count": 16}},
-		"AAPL_1h eq_date": {
-			arg: sch.ReqBars{
-				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-07-24", EndDate: "2025-07-24", Tf: "1h"}},
-			expect: map[string]interface{}{"count": 16}},
-		"AAPL_15m": {
-			arg: sch.ReqBars{
-				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-08-07", EndDate: "2025-08-07", Tf: "15m"}},
-			expect: map[string]interface{}{"count": 64}},
+		// "AAPL_1h": {
+		// 	arg: sch.ReqBars{
+		// 		Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
+		// 			StartDate: yesterday, EndDate: today_tm, Tf: "1h"}},
+		// 	expect: map[string]interface{}{"count": 16}},
+		// "AAPL_1h eq_date": {
+		// 	arg: sch.ReqBars{
+		// 		Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
+		// 			StartDate: today, EndDate: today, Tf: "1h"}},
+		// 	expect: map[string]interface{}{"count": 16}},
+		// "AAPL_15m": {
+		// 	arg: sch.ReqBars{
+		// 		Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
+		// 			StartDate: yesterday, EndDate: today_tm, Tf: "15m"}},
+		// 	expect: map[string]interface{}{"count": 64}},
 		"AAPL_1m": {
 			arg: sch.ReqBars{
 				Ticker: "AAPL", ExchangeId: 3, Options: sch.ReqBarsOptions{
-					StartDate: "2025-08-08 14:00", EndDate: "2025-08-08 14:07", Tf: "1m"}},
+					StartDate: today, EndDate: today_tm, Tf: "1m"}},
 			expect: map[string]interface{}{"count": 951}},
 	}
 	for name, tc := range tests {
@@ -113,6 +121,57 @@ func TestGetSecurity(t *testing.T) {
 	}
 }
 
+func TestGetAvailableExchanges(t *testing.T) {
+	(*t).Skip()
+	if resp, err := rest.GetAvailableExchanges(ctx); err != nil {
+		(*t).Error(err)
+	} else {
+		(*t).Logf("EXCHs: %+v", resp)
+	}
+}
+
+func TestGetStreamers(t *testing.T) {
+	(*t).Skip()
+	var (
+		err  error
+		resp sch.Streamers
+	)
+
+	if resp, err = rest.GetStreamers(ctx, true); err != nil {
+		(*t).Error(err)
+	} else if len(resp.QuoteAddresses) == 0 || resp.QuoteAddresses[0].Url != DefaultConfig.WSUrlPubFMP {
+		(*t).Errorf("wrong streamers: %+v", resp.QuoteAddresses)
+	} else {
+		(*t).Logf("STREAMERS: %+v\n", resp)
+	}
+	if resp, err = rest.GetStreamers(ctx, false); err != nil {
+		(*t).Error(err)
+	} else if len(resp.QuoteAddresses) == 0 || strings.TrimSuffix(resp.QuoteAddresses[0].Url, ":443") != DefaultConfig.WSUrlPub {
+		(*t).Errorf("wrong streamers: %+v", resp.QuoteAddresses)
+	} else {
+		(*t).Logf("STREAMERS: %+v\n", resp)
+	}
+}
+
+func TestRecoverSession(t *testing.T) {
+	(*t).Skip()
+	var (
+		err          error
+		respD, respQ sch.SessionId
+	)
+	if respD, err = rest.RecoverStreamerSession(ctx, sch.WSSessData); err != nil {
+		(*t).Error(err)
+	} else if respQ, err = rest.RecoverStreamerSession(ctx, sch.WSSessQuote); err != nil {
+		(*t).Error(err)
+	} else {
+		(*t).Logf("RECOVERED:\ndata: %s\nquote: %s\n", respD, respQ)
+	}
+}
+
+/*
+	Private
+*/
+
 func TestGetUser(t *testing.T) {
 	(*t).Skip()
 	if resp, err := rest.GetUser(ctx); err != nil {
@@ -131,15 +190,6 @@ func TestGetUserSettings(t *testing.T) {
 	}
 }
 
-func TestGetAvailableExchanges(t *testing.T) {
-	(*t).Skip()
-	if resp, err := rest.GetAvailableExchanges(ctx); err != nil {
-		(*t).Error(err)
-	} else {
-		(*t).Logf("EXCHs: %+v", resp)
-	}
-}
-
 func TestGetUserAccounts(t *testing.T) {
 	(*t).Skip()
 	var (
@@ -150,20 +200,17 @@ func TestGetUserAccounts(t *testing.T) {
 		(*t).Error(err)
 	} else {
 		(*t).Logf("ACCOUNS: %+v\n", accs)
-		// [
-		// 	{"Id":292,"ClearingAccount":"292","AccessType":"Owner","MarginType":"Cash",
-		// 		"OwnerType":"IndividualCustomer",
-		// 		"Currency":"USD"}]
 	}
 }
 
 func TestGetBalance(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err error
 		bal sch.TradingBalance
 	)
-	if bal, err = rest.GetBalance(ctx, 292); err != nil {
+	accId := uint32(421) // 292
+	if bal, err = rest.GetBalance(ctx, accId); err != nil {
 		(*t).Error(err)
 	} else {
 		(*t).Logf("BAL: %+v\n", bal)
@@ -176,10 +223,11 @@ func TestGetBalanceHistory(t *testing.T) {
 		err  error
 		bals []sch.BalanceHistoryValue
 	)
+	accId := uint32(421) // 292
 	fmt := "2006-01-02T15:04:05.999999Z"
-	fromTs := time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC).Format(fmt)
+	fromTs := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC).Format(fmt)
 	tillTs := time.Now().Format(fmt)
-	if bals, err = rest.GetBalanceHistory(ctx, 292, fromTs, tillTs); err != nil {
+	if bals, err = rest.GetBalanceHistory(ctx, accId, fromTs, tillTs); err != nil {
 		(*t).Error(err)
 	} else {
 		(*t).Logf("BALS: %+v\n", bals)
@@ -188,7 +236,8 @@ func TestGetBalanceHistory(t *testing.T) {
 
 func TestGetTransfers(t *testing.T) {
 	(*t).Skip()
-	if resp, err := rest.GetTransfers(ctx, 292); err != nil {
+	accId := uint32(421) // 292
+	if resp, err := rest.GetTransfers(ctx, accId); err != nil {
 		(*t).Error(err)
 	} else {
 		(*t).Logf("TRANSES: %+v", resp)
@@ -200,8 +249,9 @@ func TestGetPositions(t *testing.T) {
 	var (
 		err   error
 		poses []sch.Position
+		accId = uint32(421) // 292
 	)
-	if poses, err = rest.GetPositions(ctx, 292); err != nil {
+	if poses, err = rest.GetPositions(ctx, accId); err != nil {
 		(*t).Error(err)
 	} else {
 		(*t).Logf("POSES: %+v\n", poses)
@@ -211,12 +261,13 @@ func TestGetPositions(t *testing.T) {
 func TestGetOrders(t *testing.T) {
 	(*t).Skip()
 	var (
-		err  error
-		ords []sch.Order
+		err   error
+		ords  []sch.Order
+		accId = uint32(421) // 292
 	)
-	if ords, err = rest.GetOrders(ctx, 292, true); err != nil {
+	if ords, err = rest.GetOrders(ctx, accId, true); err != nil {
 		(*t).Error(err)
-	} else if ords, err = rest.GetOrders(ctx, 292, false); err != nil {
+	} else if ords, err = rest.GetOrders(ctx, accId, false); err != nil {
 		(*t).Error(err)
 	} else {
 		for _, o := range ords {
@@ -228,10 +279,11 @@ func TestGetOrders(t *testing.T) {
 func TestGetOrder(t *testing.T) {
 	(*t).Skip()
 	var (
-		err error
-		ord sch.Order
+		err   error
+		ord   sch.Order
+		accId = uint32(421) // 292
 	)
-	if ord, err = rest.GetOrder(ctx, 292, 1357); err != nil {
+	if ord, err = rest.GetOrder(ctx, accId, 1357); err != nil {
 		(*t).Error(err)
 	} else {
 		(*t).Logf("ORDER: %+v\n", ord)
@@ -243,18 +295,18 @@ func TestPlaceOrder(t *testing.T) {
 	var (
 		err   error
 		ord   sch.Order
-		AccId = uint32(292)
+		accId = uint32(421) // 292
 	)
 	tests := TestTable{
 		"Limit Buy": {
 			arg: sch.OrderParams{
-				Quantity: 1., Price: 240., Symbol: "TSLA", ClientId: "LB001", Type: sch.OrderLimit,
+				Quantity: 1., Price: 310., Symbol: "TSLA", ClientId: "LB001", Type: sch.OrderLimit,
 				Side: sch.SideBuy, Comment: "TSLA (/!@%^*&#_';$ LB001"},
 			expect: map[string]interface{}{
 				"symbol": "TSLA", "qty": 1., "side": "Buy", "cid": "LB001", "comment": "TSLA (/!@%^*&#_';$ LB001"}},
 		"Limit Sell": {
 			arg: sch.OrderParams{
-				Quantity: 1., Price: 265., Symbol: "TSLA", ClientId: "LS001", Type: sch.OrderLimit,
+				Quantity: 1., Price: 340., Symbol: "TSLA", ClientId: "LS001", Type: sch.OrderLimit,
 				Side: sch.SideSell},
 			expect: map[string]interface{}{"symbol": "TSLA", "qty": 1., "side": "Sell", "cid": "LS001", "comment": ""}},
 	}
@@ -262,7 +314,7 @@ func TestPlaceOrder(t *testing.T) {
 	for name, tc := range tests {
 		(*t).Run(name, func(t *testing.T) {
 			params := tc.arg.(sch.OrderParams)
-			if ord, err = rest.PlaceOrder(ctx, AccId, &params); err != nil {
+			if ord, err = rest.PlaceOrder(ctx, accId, &params); err != nil {
 				(*t).Error(err)
 			} else {
 				active = append(active, ord.Id)
@@ -277,7 +329,7 @@ func TestPlaceOrder(t *testing.T) {
 	}
 	time.Sleep(2 * time.Second)
 	for _, oid := range active {
-		if err = rest.CancelOrder(ctx, AccId, oid); err != nil {
+		if err = rest.CancelOrder(ctx, accId, oid); err != nil {
 			(*t).Error(err)
 		}
 	}
@@ -287,60 +339,9 @@ func TestCancelOrder(t *testing.T) {
 	(*t).Skip()
 	var (
 		err   error
-		AccId = uint32(292)
+		accId = uint32(421) // 292
 	)
-	if err = rest.CancelOrder(ctx, AccId, 1662); err != nil {
+	if err = rest.CancelOrder(ctx, accId, 1662); err != nil {
 		(*t).Error(err)
-	}
-}
-
-func TestGetStreamers(t *testing.T) {
-	(*t).Skip()
-	var (
-		err  error
-		resp sch.Streamers
-	)
-	// {"success":true,
-	// 	"data":{
-	// 		"2":
-	// 			{"streamers":{
-	// 				"QuoteAddresses":[
-	// 					{"Url":"wss:\/\/md-str-nvb-demo-prod.etnasoft.us:443","Type":"EntitlementBased",
-	// 						"SessionId":"8416f543-25b4-433d-9fab-6dfe61d12969"}],
-	// 				"DataAddresses":[
-	// 					{"Url":"wss:\/\/oms-str-nvb-demo-prod.etnasoft.us:443","Type":"delayed"}]
-	// 				},
-	// 			"credentials":{"user":"nvb.admin","password":"1234QWer"}
-	// 		},
-	// 		"3":{"streamers":{
-	// 				"QuoteAddresses":[
-	// 					{"Url":"wss:\/\/websockets.financialmodelingprep.com"}]
-	// 				},
-	// 			"credentials":{"api_key":"f56f77c1915aa10b46f58b5a62f8ea7a"}
-	// 		}
-	// 	},
-	// 	"links":[],
-	// 	"meta":[],
-	// 	"message":""}
-
-	if resp, err = rest.GetStreamers(ctx, true); err != nil {
-		(*t).Error(err)
-	} else {
-		(*t).Logf("STREAMERS: %+v\n", resp)
-	}
-}
-
-func TestRecoverSession(t *testing.T) {
-	(*t).Skip()
-	var (
-		err          error
-		respD, respQ sch.SessionId
-	)
-	if respD, err = rest.RecoverStreamerSession(ctx, sch.WSSessData); err != nil {
-		(*t).Error(err)
-	} else if respQ, err = rest.RecoverStreamerSession(ctx, sch.WSSessQuote); err != nil {
-		(*t).Error(err)
-	} else {
-		(*t).Logf("RECOVERED:\ndata: %s\nquote: %s\n", respD, respQ)
 	}
 }

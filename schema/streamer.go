@@ -16,17 +16,26 @@ type Streamer struct {
 type Streamers struct {
 	QuoteAddresses []Streamer `json:"QuoteAddresses"`
 	DataAddresses  []Streamer `json:"DataAddresses"`
+	FMPKey         string
 }
 
-type NVBStreamers struct {
-	Success bool                            `json:"success"`
-	Data    map[string]map[string]Streamers `json:"data"`
-}
-
-type Subscription struct {
+type EtnaSubReq struct {
 	Cmd            string    `json:"Cmd"`
 	SessionId      SessionId `json:"SessionId"`
 	Keys           string    `json:"Keys"`
 	Topic          string    `json:"EntityType"`
 	HttpClientType string    `json:"HttpClientType"`
+}
+
+type FmpStreamers struct {
+	Success bool `json:"success"`
+	Data    map[string]struct {
+		Streamers Streamers         `json:"streamers"`
+		Creds     map[string]string `json:"credentials"`
+	} `json:"data"`
+}
+
+type FmpReq struct {
+	Event string            `json:"event"`
+	Data  map[string]string `json:"data"`
 }

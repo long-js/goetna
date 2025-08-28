@@ -10,7 +10,7 @@ import (
 
 type EtnaConfig struct {
 	RestUrlPub, RestUrlNonRTH, RestUrlPriv string
-	WSUrlPub, WSUrlPubNvb, WSUrlPriv       string
+	WSUrlPub, WSUrlPubFMP, WSUrlPriv       string
 	RestTimeout                            time.Duration
 	WSPingTimeout                          time.Duration
 	WSMaxSilentPeriod                      int64 // Maximum period of silence, seconds
@@ -26,12 +26,13 @@ func defaultConfig() *EtnaConfig {
 		cfg.RestUrlPub = "https://pub-api-nvb-live-prod.etnasoft.us/api/"
 		cfg.RestUrlPriv = "https://priv-api-nvb-live-prod.etnasoft.us/api/"
 		cfg.WSUrlPub = "wss://md-str-nvb-live-prod.etnasoft.us"
+		cfg.WSUrlPubFMP = "wss://websockets.financialmodelingprep.com"
 		cfg.WSUrlPriv = "wss://oms-str-nvb-live-prod.etnasoft.us"
 	} else {
 		cfg.RestUrlPub = "https://pub-api-nvb-demo-prod.etnasoft.us/api/"
 		cfg.RestUrlPriv = "https://priv-api-nvb-demo-prod.etnasoft.us/api/"
 		cfg.WSUrlPub = "wss://md-str-nvb-demo-prod.etnasoft.us"
-		cfg.WSUrlPubNvb = "wss://websockets.financialmodelingprep.com"
+		cfg.WSUrlPubFMP = "wss://websockets.financialmodelingprep.com"
 		cfg.WSUrlPriv = "wss://oms-str-nvb-demo-prod.etnasoft.us"
 	}
 	return &cfg
