@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -19,8 +20,12 @@ import (
 
 func NewEtnaREST(apiKey, nonRTHToken string, login, passwd []byte, isPrivate bool, logger Logger) (*EtnaREST, error) {
 	rest := EtnaREST{httpClient: &http.Client{Timeout: 12000000000}, enc: gschema.NewEncoder()}
-	if isTest, err := strconv.ParseBool(os.Getenv("TEST_ENV")); err == nil && isTest {
-		rest.httpClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	if useCert, err := strconv.ParseBool(os.Getenv("ETNA_USE_LOCALCERT")); err == nil && useCert {
+		if cfg, err := useLocalEtnaCert(); err != nil {
+			return nil, err
+		} else {
+			rest.httpClient.Transport = &http.Transport{TLSClientConfig: cfg}
+		}
 	}
 	if isPrivate {
 		rest.baseUrl = DefaultConfig.RestUrlPriv
@@ -445,4 +450,22 @@ func (api *EtnaREST) GetBars(ctx context.Context, params *sch.ReqBars) ([]sch.Ba
 		return nil, fmt.Errorf("bars are absent: %s", resp.Message)
 	}
 	return resp.Data, nil
+}
+
+// useLocalCert trying to open the local CA certificate and to append it to the system cert pool.
+func useLocalEtnaCert() (*tls.Config, error) {
+	var (
+		err error
+		buf []byte
+		cfg tls.Config
+	)
+	if buf, err = os.ReadFile("./etna_cacert.pem"); err != nil {
+		return nil, err
+	} else if cfg.RootCAs, _ = x509.SystemCertPool(); cfg.RootCAs == nil {
+		cfg.RootCAs = x509.NewCertPool()
+	}
+	if ok := cfg.RootCAs.AppendCertsFromPEM(buf); !ok {
+		return nil, fmt.Errorf("No certs appended, using system certs only")
+	}
+	return &cfg, nil
 }

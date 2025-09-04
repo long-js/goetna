@@ -47,7 +47,7 @@ func createREST(isPrivate bool) (*EtnaREST, context.Context) {
 */
 
 func TestGetBars(t *testing.T) {
-	// (*t).Skip()
+	(*t).Skip()
 	var (
 		err  error
 		bars []sch.BarHist
@@ -259,7 +259,7 @@ func TestGetPositions(t *testing.T) {
 }
 
 func TestGetOrders(t *testing.T) {
-	(*t).Skip()
+	// (*t).Skip()
 	var (
 		err   error
 		ords  []sch.Order

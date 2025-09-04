@@ -49,7 +49,9 @@ func (ws *FmpWS) connect() error {
 		if (*ws).hdlDisconnect != nil {
 			conn.SetCloseHandler((*ws).hdlDisconnect)
 		}
+		(*ws).mu.Lock()
 		(*ws).conn = conn
+		(*ws).mu.Unlock()
 		(*ws).connected.Store(true)
 		(*ws).logger.Info("connected: %s [%s], close: %t", response.Header.Get("Server"),
 			response.Header.Get("Date"), response.Close)
@@ -74,9 +76,12 @@ func (ws *FmpWS) sendJson(message *sch.FmpReq) error {
 // Subscribe sends a subscription request for a specific topic and keys.
 // It checks for an existing connection and prevents duplicate subscriptions.
 func (ws *FmpWS) Subscribe(key string) error {
+	(*ws).mu.Lock()
 	if (*ws).conn == nil {
+		(*ws).mu.Unlock()
 		return fmt.Errorf("not connected")
 	}
+	(*ws).mu.Unlock()
 	if _, exist := (*ws).subsciptions[key]; !exist {
 		m := sch.FmpReq{Event: "subscribe", Data: map[string]string{"ticker": key}}
 		if err := (*ws).sendJson(&m); err != nil {

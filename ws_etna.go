@@ -2,13 +2,14 @@ package goetna
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	gjson "github.com/goccy/go-json"
@@ -29,6 +30,7 @@ func NewEtnaWS(name, url string, login, passwd []byte, userSessId, streamSessId 
 		userSessId:    userSessId,
 		streamSessId:  streamSessId,
 		subsciptions:  map[string][]sch.EtnaSubReq{},
+		muSub:         sync.Mutex{},
 		QuotesChan:    make(chan sch.EtnaQuote, 1000),
 		BarsChan:      make(chan sch.Bar, 100),
 		BalanceChan:   make(chan sch.TradingBalance, 20),
@@ -48,6 +50,7 @@ type EtnaWS struct {
 	userId                   int32
 	login, passwd            []byte
 	subsciptions             map[string][]sch.EtnaSubReq
+	muSub                    sync.Mutex
 
 	QuotesChan    chan sch.EtnaQuote
 	BarsChan      chan sch.Bar
@@ -100,19 +103,26 @@ func (ws *EtnaWS) connect() error {
 	header["Accept-Encoding"] = []string{"gzip, deflate"}
 
 	dialer := gws.Dialer{EnableCompression: true, HandshakeTimeout: 45 * time.Second}
-	if isTest, err := strconv.ParseBool(os.Getenv("TEST_ENV")); err == nil && isTest {
-		dialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	if useCert, err := strconv.ParseBool(os.Getenv("ETNA_USE_LOCALCERT")); err == nil && useCert {
+		if cfg, err := useLocalEtnaCert(); err != nil {
+			return err
+		} else {
+			dialer.TLSClientConfig = cfg
+		}
 	}
 
 	conn, response, err := dialer.DialContext((*ws).ctx, uri, header)
 	if err != nil {
-		return fmt.Errorf("failed to connect %s: status: %s, %+v", uri, (*response).Status, err)
+		_url := strings.Split(uri, "?")[0]
+		return fmt.Errorf("failed to connect %s: resp: %+v, %+v", _url, response, err)
 	}
 	conn.SetPongHandler((*ws).onPong)
 	if (*ws).hdlDisconnect != nil {
 		conn.SetCloseHandler((*ws).hdlDisconnect)
 	}
+	(*ws).mu.Lock()
 	(*ws).conn = conn
+	(*ws).mu.Unlock()
 	(*ws).connected.Store(true)
 	(*ws).logger.Info("connected: %s [%s] %s, close: %t", (*ws).url, response.Header.Get("Server"),
 		response.Header.Get("Date"), response.Close)
@@ -135,13 +145,17 @@ func (ws *EtnaWS) sendJson(message *sch.EtnaSubReq) error {
 // Subscribe sends a subscription request for a specific topic and keys.
 // It checks for an existing connection and prevents duplicate subscriptions.
 func (ws *EtnaWS) Subscribe(topic string, keys string) error {
+	(*ws).mu.Lock()
 	if (*ws).conn == nil {
+		(*ws).mu.Unlock()
 		return fmt.Errorf("not connected")
 	}
+	(*ws).mu.Unlock()
 	var (
 		exist bool
 		subs  []sch.EtnaSubReq
 	)
+	(*ws).muSub.Lock()
 	if subs, exist = (*ws).subsciptions[topic]; !exist {
 		subs = make([]sch.EtnaSubReq, 0, 1)
 		(*ws).subsciptions[topic] = subs
@@ -154,6 +168,7 @@ func (ws *EtnaWS) Subscribe(topic string, keys string) error {
 			break
 		}
 	}
+	(*ws).muSub.Unlock()
 	if !exist {
 		sub := sch.EtnaSubReq{
 			Cmd: "Subscribe.txt", SessionId: (*ws).userSessId, Keys: keys, Topic: topic, HttpClientType: "WebSocket"}
@@ -167,13 +182,18 @@ func (ws *EtnaWS) Subscribe(topic string, keys string) error {
 // Unsubscribe sends an unsubscription request for a specific topic and keys.
 // It checks for an existing connection and the presence of the subscription before sending the unsubscribe command.
 func (ws *EtnaWS) Unsubscribe(topic string, keys string) error {
+	(*ws).mu.Lock()
 	if (*ws).conn == nil {
+		(*ws).mu.Unlock()
 		return fmt.Errorf("not connected")
 	}
+	(*ws).mu.Unlock()
 	var (
 		exist bool
 		subs  []sch.EtnaSubReq
 	)
+	(*ws).muSub.Lock()
+	defer (*ws).muSub.Unlock()
 	if subs, exist = (*ws).subsciptions[topic]; !exist {
 		return fmt.Errorf("subscription type is absent: %s, %s", topic, keys)
 	}
@@ -186,6 +206,27 @@ func (ws *EtnaWS) Unsubscribe(topic string, keys string) error {
 			}
 			subs = append(subs[:i], subs[i+1:]...)
 			break
+		}
+	}
+	return nil
+}
+
+func (ws *EtnaWS) resubscribe() error {
+	var err error
+
+	(*ws).muSub.Lock()
+	defer (*ws).muSub.Unlock()
+	if len((*ws).subsciptions) == 0 {
+		return nil
+	}
+	for topic, subs := range (*ws).subsciptions {
+		for sIdx := 0; sIdx < len(subs); sIdx++ {
+			subs[sIdx].SessionId = (*ws).userSessId
+			if err = (*ws).sendJson(&subs[sIdx]); err != nil {
+				return fmt.Errorf("can't resubscribe: %s %+v, %+v", topic, subs[sIdx], err)
+			} else {
+				(*ws).logger.Debug("resubscribed %s %+v", topic, subs[sIdx])
+			}
 		}
 	}
 	return nil
@@ -251,17 +292,21 @@ func (ws *EtnaWS) onMessage(topic string, dec *gjson.Decoder) error {
 		if err = dec.Decode(&sub); err != nil {
 			return fmt.Errorf("subscription decoding fault %+v", err)
 		}
+		(*ws).muSub.Lock()
 		if subs, exist := (*ws).subsciptions[sub.Topic]; exist {
 			subs = append(subs, sub)
 			(*ws).logger.Info("Subscribed %s: %s [%s]", sub.Topic, sub.Keys, sub.SessionId)
 		}
+		(*ws).muSub.Unlock()
 	case sch.WSCmdUnsub:
 		if err = dec.Decode(&sub); err != nil {
 			return fmt.Errorf("unsubscription decoding fault %+v", err)
 		}
+		(*ws).muSub.Lock()
 		if _, exist := (*ws).subsciptions[sub.Topic]; exist {
-			(*ws).logger.Info("TODO Unsubscribed %s: %s [%s]", sub.Topic, sub.Keys, sub.SessionId)
+			(*ws).logger.Info("Unsubscribed %s: %s [%s]", sub.Topic, sub.Keys, sub.SessionId)
 		}
+		(*ws).muSub.Unlock()
 	case sch.WSCmdCreate:
 		msg := map[string]string{}
 		if err = dec.Decode(&msg); err != nil {
@@ -269,6 +314,9 @@ func (ws *EtnaWS) onMessage(topic string, dec *gjson.Decoder) error {
 		}
 		(*ws).userSessId = sch.SessionId(msg["SessionId"])
 		(*ws).loggedIn.Store(true)
+		if err = (*ws).resubscribe(); err != nil {
+			return err
+		}
 		(*ws).hdlConnect((*ws).name)
 		(*ws).logger.Info("Websocket session created: %s", msg["SessionId"])
 	default:

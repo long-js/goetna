@@ -7,16 +7,13 @@ import (
 )
 
 type EtnaQuote struct {
-	Time          QuoteTime
-	Ask           float64
-	Bid           float64
-	Last          float64
-	Size          float64
-	AskSize       float64
-	BidSize       float64
-	PreviousClose float64
-	SymbolId      string
-	Type          string
+	Time     QuoteTime
+	Ask      float64
+	Bid      float64
+	Last     float64
+	Size     float64
+	SymbolId string
+	Type     string
 }
 
 func (q *EtnaQuote) Parse(values map[string]string) error {
@@ -38,12 +35,6 @@ func (q *EtnaQuote) Parse(values map[string]string) error {
 			(*q).Last, err = strconv.ParseFloat(v, 64)
 		case "Volume":
 			(*q).Size, err = strconv.ParseFloat(v, 64)
-		case "AskSize":
-			(*q).AskSize, err = strconv.ParseFloat(v, 64)
-		case "BidSize":
-			(*q).BidSize, err = strconv.ParseFloat(v, 64)
-		case "PreviousClose":
-			(*q).PreviousClose, err = strconv.ParseFloat(v, 64)
 		case "Key":
 			(*q).SymbolId = v
 		case "QuoteTypes":

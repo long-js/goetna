@@ -103,6 +103,7 @@ func (ws *WSClient) Start() error {
 
 func (ws *WSClient) Stop() {
 	(*ws).ctxCancel()
+	(*ws).connected.Store(false)
 }
 
 func (ws *WSClient) reconnect() {
@@ -113,20 +114,9 @@ func (ws *WSClient) reconnect() {
 		time.Sleep(time.Duration(period) * time.Second)
 		(*ws).conn = nil
 		if err = (*ws).Start(); err == nil {
-			// TODO check for automatic resubsciption after session's been restored.
-			// resubscribe
-			// for topic, subs := range (*ws).subsciptions {
-			// 	for sIdx := 0; sIdx < len(subs); sIdx++ {
-			// 		if err = (*ws).sendJson(&subs[sIdx]); err != nil {
-			// 			(*ws).logger.Error("can't resubscribe: %s %+v, %+v", topic, subs[sIdx], err)
-			// 		} else {
-			// 			(*ws).logger.Debug("resubscribed %s %+v", topic, subs[sIdx])
-			// 		}
-			// 	}
-			// }
 			break
 		}
-		(*ws).logger.Error("reconnection fault %+v", err)
+		(*ws).logger.Error("reconnection fault: %+v", err)
 	}
 	if err != nil {
 		(*ws).logger.Error("giving up with reconnection: %+v", err)
@@ -192,11 +182,11 @@ func (ws *WSClient) goReceiver() {
 				continue
 			}
 		}
-
-		// if topic != sch.WSTopicCandle && topic != sch.WSTopicQuote && topic != sch.WSCmdPing {
-		if topic != sch.WSCmdPing {
+		// TODO remove *******************
+		if topic != sch.WSCmdPing && topic != sch.WSTopicQuote {
 			(*ws).logger.Debug("<-- %s", sockBuf)
 		}
+		// *******************************
 		if _, err = buffer.Write(sockBuf); err != nil {
 			(*ws).logger.Error("can't write to buffer %+v", err)
 			continue
@@ -226,7 +216,10 @@ loop:
 		case <-done:
 			break loop
 		case req = <-(*ws).reqChan:
-			if err = (*(*ws).conn).WriteMessage(gws.TextMessage, req); err != nil {
+			(*ws).mu.Lock()
+			err = (*(*ws).conn).WriteMessage(gws.TextMessage, req)
+			(*ws).mu.Unlock()
+			if err != nil {
 				(*ws).logger.Error("can't send message %+v, %+v", req, err)
 				continue
 			}
